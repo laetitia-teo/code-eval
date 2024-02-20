@@ -1,7 +1,7 @@
 run_id: null
 
 train: true
-test: True
+eval: True
 
 # general
 model_id: deepseek-ai/deepseek-coder-1.3b-instruct
