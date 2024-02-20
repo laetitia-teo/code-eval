@@ -7,6 +7,8 @@ import json
 import re
 import os
 
+from typing import List
+
 def test_puzzle(test_fg):
     test_fg= "from typing import *\n"+test_fg
     try:
@@ -397,7 +399,7 @@ def remove_example_line(code: str) -> str:
 
     return modified_code
 
-def preprocessing_P3_no_test(split: str = "train", n_token_max: int =512, path=None,tokenizer=None) -> list[dict]:
+def preprocessing_P3_no_test(split: str = "train", n_token_max: int =512, path=None,tokenizer=None) -> List[dict]:
     """
     dl puzzles from P3 dataset and give train or test puzzles
     split = "train" or "test"

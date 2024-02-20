@@ -8,3 +8,5 @@ save_results
 save_sol
 out
 data
+.vscode
+analyses

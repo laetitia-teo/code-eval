@@ -1,0 +1,25 @@
+run_id: null
+
+train: true
+test: True
+
+# general
+model_id: deepseek-ai/deepseek-coder-1.3b-instruct
+seed: 42
+sol: true
+
+# training
+train_path: data/puzzles_high_fitness_archivetrain.json
+batch_size: 8
+accum_step: 1
+num_epochs: 2
+
+# testing
+test_path: P3_test_emb_wizard3B.json
+compile: false
+k: 5
+eval_batch_size: 16
+
+slurm:
+  cluster: jz
+  gpu: a100
