@@ -1,2 +1,10 @@
 
 __pycache__/
+
+outputs
+run_saved
+save_models
+save_results
+save_sol
+out
+data
