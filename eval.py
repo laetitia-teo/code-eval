@@ -33,26 +33,15 @@ def eval(config, run_id, trainer=None):  # TODO how to get the same run_id than 
 
     if trainer is not None:
         trainer.accelerator.clear()
-        import gc
-        del model
-        del tokenizers
-        gc.collect()
-        torch.cuda.empty_cache()
-        for obj in gc.get_objects():
-            if torch.is_tensor(obj):
-                obj.cpu()            
-        gc.collect()
-        torch.cuda.empty_cache()
 
-    else:
-        import gc
-        gc.collect()
-        torch.cuda.empty_cache()
-        for obj in gc.get_objects():
-            if torch.is_tensor(obj):
-                obj.cpu()            
-        gc.collect()
-        torch.cuda.empty_cache()
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
+    for obj in gc.get_objects():
+        if torch.is_tensor(obj):
+            obj.cpu()            
+    gc.collect()
+    torch.cuda.empty_cache()
 
     # testing
     tokenizer = AutoTokenizer.from_pretrained(output_dir)

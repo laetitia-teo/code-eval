@@ -154,5 +154,7 @@ def train(config, run_id):
 
     output_dir = os.path.join(model_save_dir, f'{model_name}_{run_id}')
     trainer.save_model(output_dir)
+    del model
+    del tokenizer
 
     return trainer
