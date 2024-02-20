@@ -15,7 +15,7 @@ accum_step: 1
 num_epochs: 2
 
 # testing
-test_path: P3_test_emb_wizard3B.json
+test_path: data/P3_test_emb_wizard3B.json
 compile: false
 k: 5
 eval_batch_size: 16
