@@ -1,0 +1,25 @@
+run_id: null
+
+train: true
+eval: True
+
+# general
+model_id: deepseek-ai/deepseek-coder-1.3b-instruct
+seed: 42
+sol: true
+
+# training
+train_path: {train_path}
+batch_size: 8
+accum_step: 1
+num_epochs: 2
+
+# testing
+test_path: {test_path}
+compile: false
+k: 5
+eval_batch_size: 16
+
+slurm:
+  cluster: jz
+  gpu: a100
