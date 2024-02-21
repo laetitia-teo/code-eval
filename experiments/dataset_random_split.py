@@ -26,7 +26,7 @@ if args.seed is None:
 else:
     seed = args.seed
 
-os.chdir(str(pathlib.Path(__file__).parent))  # make sure we are at root of project
+os.chdir(str(pathlib.Path(__file__).parent.parent))  # make sure we are at root of project
 print(f'current directory: {os.getcwd()}')
 
 print(f'seed = {seed}')
