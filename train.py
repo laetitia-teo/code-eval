@@ -67,6 +67,7 @@ def train(config, run_id):
     dataset = Dataset.from_list(dataset)
     dataset = dataset.shuffle(seed=config.seed)
 
+    # TODO maybe move this in eval
     save_all_dir = str(pathlib.Path(name_json_save_all).parent)
     if not os.path.exists(save_all_dir):
         os.makedirs(save_all_dir)

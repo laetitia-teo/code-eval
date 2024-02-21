@@ -2,6 +2,7 @@ import os
 import json
 import copy
 from tqdm import tqdm
+import pathlib
 
 import torch
 import numpy as np
@@ -30,6 +31,10 @@ def eval(config, run_id, trainer=None):  # TODO how to get the same run_id than 
     model_name = config.model_id.split('/')[-1]
     name_json_sol = f'outputs/{run_id}/save_sol/sols.json'
     output_dir = os.path.join(model_save_dir, f'{model_name}_{run_id}')
+
+    sol_folder = str(pathlib.Path(name_json_sol).parent)
+    if not os.path.exists(sol_folder):
+        os.makedirs(sol_folder)
 
     if trainer is not None:
         trainer.accelerator.clear()
