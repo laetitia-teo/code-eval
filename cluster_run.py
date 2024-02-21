@@ -27,11 +27,11 @@ if args.run_id is not None:
 # create and run slurm file
 match cluster, args.gpu:
     case 'jz', 'a100':
-        template = open('slurm/slurm_templates/jz_template.slurm')
+        template = open('slurm/slurm_templates/jz_template.slurm').read()
     case 'jz', 'v100':
-        template = open('slurm/slurm_templates/jz_template_v100.slurm')
+        template = open('slurm/slurm_templates/jz_template_v100.slurm').read()
     case 'plafrim', _:
-        template = open('slurm/slurm_templates/plafrim_template.slurm')
+        template = open('slurm/slurm_templates/plafrim_template.slurm').read()
     case 'cleps', _:
         raise NotImplementedError
     case _:
