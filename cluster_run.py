@@ -23,6 +23,8 @@ else:
 # create run id
 if args.run_id is None:
     run_id = str(datetime.now()).replace(' ', '_')
+else:
+    run_id = args.run_id
 
 # create and run slurm file
 match cluster, args.gpu:
