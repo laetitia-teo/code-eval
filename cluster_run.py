@@ -21,7 +21,7 @@ else:
     cluster = 'cleps'  # TODO add gcp
 
 # create run id
-if args.run_id is not None:
+if args.run_id is None:
     run_id = str(datetime.now()).replace(' ', '_')
 
 # create and run slurm file
