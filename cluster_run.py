@@ -63,6 +63,6 @@ with open(slurmfile_path, 'w') as f:
     f.write(slurm_file)
 
 if not os.path.exists('out'):
-    os.mkdirs('out')
+    os.makedirs('out')
 
 subprocess.call(f'sbatch {slurmfile_path}', shell=True)
