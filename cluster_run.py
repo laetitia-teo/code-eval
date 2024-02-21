@@ -55,7 +55,7 @@ slurm_file = template.format(
     script=script
 )
 
-slurmfile_path = 'slurm/slurm_files/run_{config_name}.slurm'
+slurmfile_path = f'slurm/slurm_files/run_{args.config}.slurm'
 with open(slurmfile_path, 'w') as f:
     f.write(slurm_file)
 
