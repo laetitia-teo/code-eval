@@ -45,9 +45,9 @@ first_dataset_path = f'data/first_{dataset_name}_{seed}.json'
 second_dataset_path = f'data/second_{dataset_name}_{seed}.json'
 
 with open(first_dataset_path, 'w') as f:
-    json.dump(first_dataset)
+    json.dump(first_dataset, f)
 with open(second_dataset_path, 'w') as f:
-    json.dump(second_dataset)
+    json.dump(second_dataset, f)
 
 # create config files
 with open('conf/config_template.yaml', 'r') as f:
