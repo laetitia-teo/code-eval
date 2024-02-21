@@ -67,9 +67,9 @@ with open(f'conf/{conf_name_second}.yaml', 'w') as f:
 # run experiment
 run_id_first = f'split_expe_first_{seed}'
 run_id_second = f'split_expe_second_{seed}'
-command_first = (f'python cluster_run.py -g {args.gpu} --config-name {conf_name_first} '
+command_first = (f'python cluster_run.py -g {args.gpu} --config {conf_name_first} '
                  f'--run-id {run_id_first}')
-command_second = (f'python cluster_run.py -g {args.gpu} --config-name {conf_name_second} '
+command_second = (f'python cluster_run.py -g {args.gpu} --config {conf_name_second} '
                   f'--run-id {run_id_second}')
 
 subprocess.call(command_first, shell=True)
