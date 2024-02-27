@@ -65,7 +65,7 @@ def get_compression_progress(tokenized_puzzle, tokenized_puzzle_archive, model, 
                              original_losses=None, batch_size=2):
     # compute likelihood of solutions before
     if original_losses is None:
-        original_losses = get_solution_logprobs(tokenized_puzzle_archive, model, batch_size=batch_size)
+        original_losses = get_solution_losses(tokenized_puzzle_archive, model, batch_size=batch_size)
 
     # step on the current puzzle
     # todo: the memory costs seem to keep increasing here, try to fix
@@ -84,6 +84,6 @@ def get_compression_progress(tokenized_puzzle, tokenized_puzzle_archive, model, 
     torch.cuda.empty_cache()
 
     # compute likelihood of solutions after
-    final_losses = get_solution_logprobs(tokenized_puzzle_archive, model, batch_size=batch_size)
+    final_losses = get_solution_losses(tokenized_puzzle_archive, model, batch_size=batch_size)
     differences = final_losses - original_losses
     return differences
