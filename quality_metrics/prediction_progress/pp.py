@@ -9,7 +9,7 @@ from quality_metrics.common import (
     create_model_and_tokenizer,
 )
 
-from quality_metrics.prompts import make_pp_prompt
+from quality_metrics.prompts.prompts import pp_prompt
 from quality_metrics.prediction_progress import losses
 
 
@@ -43,7 +43,15 @@ class PredictionProgressCE(QualityMetric):
         if prompt is not None:
             self.prompt = prompt
         else:
-            self.prompt = make_pp_prompt(model_id_or_path)
+            self.prompt = pp_prompt
+
+        # check what wappens with non-chat models here
+        self.messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful chatbot who solves python programming problems.",
+            },
+        ]
 
         # TODO find a way to mask some tokens of the solution, maybe with a pattern
         self.solution_mask = solution_mask
@@ -65,7 +73,14 @@ class PredictionProgressCE(QualityMetric):
                 archive_solution=archive_problem.completion)
             for archive_problem in self.problem_archive]
 
-        archive_tokenized_puzzles = self.tokenizer(archive_puzzle_sols, return_tensors='pt',
+        # apply chat template to all the prompts
+        prompts = []
+        for archive_puz_sol in archive_puzzle_sols:
+            messages = self.messages + [{'user': archive_puz_sol}]
+            prompts.append(self.tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True
+            ))
+        archive_tokenized_puzzles = self.tokenizer(prompts, return_tensors='pt',
                                                    padding=True)
 
         # get solution mask
