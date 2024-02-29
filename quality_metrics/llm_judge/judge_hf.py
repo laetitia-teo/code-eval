@@ -16,7 +16,7 @@ from quality_metrics.common import (
 # HF model
 
 class HF_Rank(Rank_puzzle):
-    def __init__(self, puzzle_dict,prompt_instruction,mode_rank="pairwise",exllama2=False,model_id=None,revision="main",n_generation=4) -> None:
+    def __init__(self, puzzle_dict,prompt_instruction,mode_rank="pairwise",exllama2=False,model_id=None,revision="main",n_generation=4,bs=2) -> None:
         """
         Args:
         - puzzle_dict: a dictionary of puzzles to rank
@@ -33,7 +33,7 @@ class HF_Rank(Rank_puzzle):
         self.exllama2 = exllama2
         self.model_id = model_id
         self.revision = revision
-        super().__init__(puzzle_dict=puzzle_dict,prompt_instruction=prompt_instruction,mode_rank=mode_rank,n_generation=n_generation)
+        super().__init__(puzzle_dict=puzzle_dict,prompt_instruction=prompt_instruction,mode_rank=mode_rank,n_generation=n_generation,bs=bs)
 
     def init_model(self):
         from transformers import AutoModelForCausalLM, AutoTokenizer, GPTQConfig
@@ -63,31 +63,36 @@ class HF_Rank(Rank_puzzle):
 
 
 class Yes_model(HF_Rank):
-    def __init__(self, puzzle_dict,mode_rank="absolute",prompt_instruction=None,exllama2=False,model_id="/home/flowers/work/hf/deepseek-coder-1.3b-instruct",yes_mode="finetuning",n_generation=1) -> None:
+    def __init__(self, puzzle_dict,mode_rank="absolute",prompt_instruction=None,exllama2=False,model_id="/home/flowers/work/hf/deepseek-coder-1.3b-instruct",yes_mode="finetuning",n_generation=1,bs=2,debug=False) -> None:
         """
         yes_mode = ["finetuning","education"] #prompt to use for the ranking
         """
+        self.debug = False
         self.exllama2 = exllama2
         self.yes_mode = yes_mode # "finetuning" or "education"
         self.soft = torch.nn.Softmax(dim=-1)
-        super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,exllama2=exllama2,n_generation=n_generation)
+        super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,exllama2=exllama2,n_generation=n_generation,bs=bs)
         
         
     def generate(self,list_text: list[str]):
         assert isinstance(list_text,list)
         with torch.inference_mode():
-            inputs = self.tokenizer(list_text, return_tensors="pt").to("cuda")
+            inputs = self.tokenizer(list_text, return_tensors="pt",padding=True).to("cuda")
             out_yes = self.model(**inputs)
             # out = self.tokenizer.decode(out_tok[0])
             k=10
             yes_logits=self.soft(out_yes.logits[:,-1]).cpu().detach() #logits associated with the token "yes"
             values,indices=torch.topk(yes_logits, k)
-            list_words=self.tokenizer.batch_decode(indices.flatten().T)
+            list_words=self.tokenizer.batch_decode(indices.flatten())
             list_words=np.array(list_words).reshape(values.shape).tolist()
             values = values.tolist()
             list_proba_yes=[]
             # values,list_token
             for idx in range(len(list_words)):
+                if self.debug:
+                    print("-----")
+                    for j in range(len(list_words[idx])):
+                        print(f"list_words[idx][j]: {list_words[idx][j]}, values[idx][j]: {values[idx][j]}")
                 list_proba_yes.append(return_proba_yes(values[idx],list_words[idx]))
         return list_proba_yes
     

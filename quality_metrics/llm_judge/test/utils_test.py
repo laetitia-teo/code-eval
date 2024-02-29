@@ -1,7 +1,11 @@
 import json
 import numpy as np
+import os
+test_directory = os.path.dirname(os.path.realpath(__file__))
+# path_prompt = os.path.abspath("src/examplefile.txt") which one is "better"?
+path_prompt = os.path.join(test_directory,'puzzles_test.json')
 
-def load_archive(n_puzzle=30, path_archive="/home/flowers/work/OpenELM/analysis_P3/quality/to_analyse/maps_1_imgep_smart.json"):
+def load_archive(n_puzzle=30, path_archive=path_prompt):
     with open(path_archive, "r") as file:
         data = json.load(file)
     np.random.seed(0)

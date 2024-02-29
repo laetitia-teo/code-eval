@@ -6,7 +6,8 @@ from tqdm import tqdm,trange
 from abc import abstractmethod
 from typing import Tuple 
 
-
+# TODO: maybe add something a la Auto HF class
+# e;g; AUTO_yes_model(backend = "openai|HF") to use judge_hf or judge_openai
 
 class Rank_puzzle(QualityMetric):
     def __init__(self,puzzle_dict,mode_rank="pairwise",prompt_instruction=None, n_generation=4,bs=1):

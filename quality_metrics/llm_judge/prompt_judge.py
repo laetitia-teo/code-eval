@@ -1,6 +1,6 @@
 # Prompt absolute ranking of a puzzle
 
-# prompt from OpenCodeInterpreter https://arxiv.org/abs/2402.14658 
+## prompt from OpenCodeInterpreter https://arxiv.org/abs/2402.14658 
 
 OpenCodeInterpreter_1="""Rate the following code queries on a scale of 1 to 5 based on their complexity, where 1 is the easiest and 5 is the most
 difficult. Consider the complexity of the query
@@ -46,7 +46,7 @@ OPTIONS:
 - No
 """
 
-# TODO: change prompt_education to be more specific to the task
+## TODO: change prompt_education to be more specific to the task
 yes_education="""This is a educational datapoint to give to students during their exams:
 ###
 {datapoint}
@@ -71,7 +71,7 @@ OPTIONS:
 
 
 prompt_openchat = """GPT4 Correct User: {instruct}<|end_of_turn|>GPT4 Correct Assistant: Hi<|end_of_turn|>GPT4 Correct User: How are you today?<|end_of_turn|>GPT4 Correct Assistant:"""
-# pormpt prometheus / openchat
+## pormpt prometheus / openchat
 instruction_prometheus="""###Task Description:
 An instruction (might include an Input inside it), a response to evaluate, a reference answer that gets a score of 5, and a score rubric representing a evaluation criteria are given.
 1. Write a detailed feedback that assess the quality of the response strictly based on the given score rubric, not evaluating in general.

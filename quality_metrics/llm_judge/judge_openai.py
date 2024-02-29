@@ -11,7 +11,7 @@ from openai import AzureOpenAI,OpenAI
 from quality_metrics.common import get_completion, get_multiple_completions, chunks
 from tqdm import tqdm
 
-
+import copy
 import torch 
 import numpy as np
 
@@ -19,8 +19,9 @@ from utils_judge import return_proba_yes
 
 # base openai class        
 class OpenAI_Rank(Rank_puzzle):
-    def __init__(self,puzzle_dict, prompt_instruction: str= None, azure: bool=True, openai_key: str=None, 
+    def __init__(self,puzzle_dict, prompt_instruction: str= None, cfg_openai_client: dict = None,
                  model_id="gpt-3.5-turbo-0125",mode_rank="absolute",n_generation=1,temperature=0, max_workers=20, bs=50,) -> None:
+            
         """
         Args:
         - puzzle_dict: a dictionary of puzzles to rank
@@ -31,15 +32,34 @@ class OpenAI_Rank(Rank_puzzle):
         - n_generation: the number of time to do pairwise ranking on a pair of puzzles or absolute ranking of a puzzle
         - azure : whether to use azure or openai
         - openai_key: the openai_key to use
+        - cfg_openai_client: the configuration of the openai client
+        {"openai_key: str,
+        "azure": bool,
+        "api_version": "2024-02-15-preview"
+        "azure_endpoint" =,... } 
         kwargs:
         - mode_rank: the mode to rank the puzzles, either "pairwise" or "absolute"
         - max_workers: the number of workers to use for batch call
         """
         self.max_workers = max_workers
-        self.azure = azure
+        
+     
         self.temperature = temperature
         self.model_id = model_id
-        self.openai_key = openai_key
+        cfg_openai_client = copy.deepcopy(cfg_openai_client)
+        if "azure_endpoint" in cfg_openai_client:
+            self.model_id = cfg_openai_client["model_id"]
+            del cfg_openai_client["model_id"]
+            self.cfg_openai_client = cfg_openai_client
+            self.azure = True
+        else:
+            if "api_key" in cfg_openai_client:
+                self.openai_key= cfg_openai_client["api_key"]
+            else:
+                self.openai_key= None
+            self.azure = False
+
+
         super().__init__(puzzle_dict=puzzle_dict,prompt_instruction=prompt_instruction,mode_rank=mode_rank,n_generation=n_generation,bs=bs)
 
     def init_model(self):
@@ -49,13 +69,14 @@ class OpenAI_Rank(Rank_puzzle):
         # TODO: rename config option?
         "model": self.model_id,
         "logprobs": False,
-        "top_logprobs": 5,
+        # "top_logprobs": 5,
         "max_tokens": 200,
         }
+
         max_retries=10
         timeout=10
         if self.azure:
-            self.client = AzureOpenAI(api_key=self.openai_key,max_retries=max_retries, timeout=timeout)
+            self.client = AzureOpenAI(**self.cfg_openai_client,max_retries=max_retries, timeout=timeout)
         else:
             self.client = OpenAI(api_key=self.openai_key,max_retries=max_retries, timeout=timeout)
 
@@ -118,21 +139,20 @@ class OpenCodeInterpreter(OpenAI_Rank):
         """return the list_puzzles int between 0 and 5"""
         from concurrent.futures import ThreadPoolExecutor
 
-        if isinstance(list_codes, str):
-            list_codes = [list_codes]
-            completions = []
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                for sub_batch in chunks(list_codes, self.max_workers):
-                    for _,message_list in enumerate(sub_batch):
-                        kwargs = {"code":message_list}
-                        
-                        future = executor.submit(
-                            self.absolute_grade_one_code,**kwargs
-                        )
-                        completions.append(future)
-            # Retrieve the results from the futures
-            grades = [future.result() for future in completions]
-            return grades
+        assert isinstance(list_codes, list)
+        completions = []
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            for sub_batch in chunks(list_codes, self.max_workers):
+                for _,message_list in enumerate(sub_batch):
+                    kwargs = {"code":message_list}
+                    
+                    future = executor.submit(
+                        self.absolute_grade_one_code,**kwargs
+                    )
+                    completions.append(future)
+        # Retrieve the results from the futures
+        grades = [future.result() for future in completions]
+        return grades
     
 
 
@@ -147,6 +167,7 @@ class Yes_model(OpenAI_Rank):
         super().__init__(**kwargs)
 
         self.cfg['logprobs'] = True
+        self.cfg['top_logprobs'] = 5
 
 
     def generate(self,text):
