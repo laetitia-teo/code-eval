@@ -62,34 +62,6 @@ class HF_Rank(Rank_puzzle):
             list_out = self.tokenizer.decode(out_tok[:,len_sequence:], skip_special_tokens=True) # only keep completion
         return list_out
     
-# evaluate with GAIR/autoj-13b-GPTQ-4bits 
-
-# class Auto_j_Rank(HF_Rank):
-#     def __init__(self, puzzle_dict,mode_rank="pairwise",prompt_instruction=None,exllama2=True,model_id="GAIR/autoj-13b-GPTQ-4bits",n_generation=4) -> None:
-#         self.exllama2 = exllama2
-#         super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,n_generation=n_generation)
-        
-        
-#     def pairwise_ranking(self,puzzle1: str,puzzle2: str) -> str:
-#         """return the winner (puzzle1 or puzzle2)"""
-#         query = self.prompt_instruction
-#         resp1 = puzzle1
-#         resp2 = puzzle2
-#         input_pairwise = build_autoj_input(prompt=query, 
-#                     resp1 = resp1,  resp2 = resp2, 
-#                     protocol = "pairwise_tie") # for pairwise response comparison 
-#         out = self.generate(input_pairwise)
-#         return extract_pairwise_result_autoj(out)
-    
-#     def absolute_grade(self,puzzle):
-#         """return the absolute_grade float between 0 and 10"""
-#         query = self.prompt_instruction
-#         resp1 = puzzle
-#         input_single = build_autoj_input(prompt=query, 
-#                     resp1 = resp1, resp2=None, 
-#                     protocol = "single") # for single response evaluation 
-#         out = self.generate(input_single)
-#         return extract_single_rating_autoj(out)
 
 
 class Yes_model(HF_Rank):
@@ -125,16 +97,50 @@ class Yes_model(HF_Rank):
         """return the absolute_grade float between 0 and 10"""
         # query = self.prompt_instruction
         # yes_education,yes_finetuning
-         
-        list_text = self.prompt_format(list_text)
+        if self.yes_mode=="education":
+            yes_prompt = yes_education
+        elif self.yes_mode=="finetuning":
+            yes_prompt = yes_finetuning
+        else:
+            raise ValueError(f"Invalid yes_mode: {self.yes_mode}")
         for idx in range(len(list_text)):
-            if self.yes_mode=="finetuning":
-                list_text[idx] = self.prompt_format(yes_finetuning.format(list_text[idx]))
+            list_text[idx] = self.prompt_format(yes_prompt.format(list_text[idx]))
 
         out = self.generate(list_text) # remove [0] when main loop is batchable
         return out
 
 
+
+
+    
+# TODO: evaluate with GAIR/autoj-13b-GPTQ-4bits 
+
+# class Auto_j_Rank(HF_Rank):
+#     def __init__(self, puzzle_dict,mode_rank="pairwise",prompt_instruction=None,exllama2=True,model_id="GAIR/autoj-13b-GPTQ-4bits",n_generation=4) -> None:
+#         self.exllama2 = exllama2
+#         super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,n_generation=n_generation)
+        
+        
+#     def pairwise_ranking(self,puzzle1: str,puzzle2: str) -> str:
+#         """return the winner (puzzle1 or puzzle2)"""
+#         query = self.prompt_instruction
+#         resp1 = puzzle1
+#         resp2 = puzzle2
+#         input_pairwise = build_autoj_input(prompt=query, 
+#                     resp1 = resp1,  resp2 = resp2, 
+#                     protocol = "pairwise_tie") # for pairwise response comparison 
+#         out = self.generate(input_pairwise)
+#         return extract_pairwise_result_autoj(out)
+    
+#     def absolute_grade(self,puzzle):
+#         """return the absolute_grade float between 0 and 10"""
+#         query = self.prompt_instruction
+#         resp1 = puzzle
+#         input_single = build_autoj_input(prompt=query, 
+#                     resp1 = resp1, resp2=None, 
+#                     protocol = "single") # for single response evaluation 
+#         out = self.generate(input_single)
+#         return extract_single_rating_autoj(out)
 
 
 # # TODO: finish openchat ranking

@@ -154,8 +154,10 @@ def get_completion(client, prompt :str, cfg_generation :dict, system_prompt :str
     except Exception as e:
         print("completion problem: ",e)
         return None 
-
-    out = completion.choices[0].message.content
+    if "logprobs" in cfg_generation and cfg_generation["logprobs"]:
+        out = completion.choices[0]
+    else:
+        out = completion.choices[0].message.content
     return out
 
 

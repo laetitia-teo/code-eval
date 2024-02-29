@@ -1,26 +1,22 @@
 from quality_metrics.common import (
-    QualityMetric,
     Problem,
-    create_model_and_tokenizer,
 )
 from judge_base import Rank_puzzle
 from openai import AzureOpenAI,OpenAI
 
-from common import get_completion
+from common import get_completion, get_multiple_completions, chunks
 from tqdm import tqdm
-from abc import abstractmethod
-from typing import Tuple 
 from prompt_judge import OpenCodeInterpreter_1, OpenCodeInterpreter_2
 import torch 
-import time
+from prompt_judge import OpenCodeInterpreter_1, OpenCodeInterpreter_2,yes_finetuning,yes_education
+import numpy as np
 
-
-
+from utils_judge import return_proba_yes
 # base openai class
         
 class OpenAI_Rank(Rank_puzzle):
     def __init__(self,puzzle_dict, prompt_instruction: str= None, azure: bool=True, openai_key: str=None, 
-                 model_id="gpt-3.5-turbo-0125",mode_rank="absolute",n_generation=1,temperature=0) -> None:
+                 model_id="gpt-3.5-turbo-0125",mode_rank="absolute",n_generation=1,temperature=0, max_workers=20, bs=50,) -> None:
         """
         Args:
         - puzzle_dict: a dictionary of puzzles to rank
@@ -33,13 +29,14 @@ class OpenAI_Rank(Rank_puzzle):
         - openai_key: the openai_key to use
         kwargs:
         - mode_rank: the mode to rank the puzzles, either "pairwise" or "absolute"
-
+        - max_workers: the number of workers to use for batch call
         """
+        self.max_workers = max_workers
         self.azure = azure
         self.temperature = temperature
         self.model_id = model_id
         self.openai_key = openai_key
-        super().__init__(puzzle_dict=puzzle_dict,prompt_instruction=prompt_instruction,mode_rank=mode_rank,n_generation=n_generation)
+        super().__init__(puzzle_dict=puzzle_dict,prompt_instruction=prompt_instruction,mode_rank=mode_rank,n_generation=n_generation,bs=bs)
 
     def init_model(self):
         self.cfg: dict = {
@@ -48,7 +45,7 @@ class OpenAI_Rank(Rank_puzzle):
         # TODO: rename config option?
         "model": self.model_id,
         "logprobs": False,
-        # "top_logprobs": 5,
+        "top_logprobs": 5,
         "max_tokens": 200,
         }
         max_retries=10
@@ -59,9 +56,21 @@ class OpenAI_Rank(Rank_puzzle):
             self.client = OpenAI(api_key=self.openai_key,max_retries=max_retries, timeout=timeout)
 
     def generate(self,text):
+        """
+        if logprobs is True, return the whole completion object c.f get_completion
+        else only return test
+        """
         out = get_completion(self.client, text, self.cfg)
         return out
     
+    def multiple_generation(self,list_text):
+        """
+        return batch version of generate
+        """
+        list_out = get_multiple_completions(self.client, list_text, self.cfg, max_workers=self.max_workers)
+        return list_out
+
+
 
 class OpenCodeInterpreter(OpenAI_Rank):
     def __init__(self,Opencode_mode="1",**kwargs) -> None:
@@ -75,10 +84,11 @@ class OpenCodeInterpreter(OpenAI_Rank):
             self.prompt_1= OpenCodeInterpreter_2
         super().__init__(**kwargs)
         
-    def absolute_grade(self,puzzle):
-        """return the absolute_grade float between 0 and 10"""
 
-        input_single = self.prompt_1.format(query=puzzle)
+    def absolute_grade_one_code(self, code):
+        """return the absolute_grade int between 0 and 5"""
+
+        input_single = self.prompt_1.format(query=code)
         n_try=3
         grade=-1
         while n_try>0:
@@ -100,6 +110,27 @@ class OpenCodeInterpreter(OpenAI_Rank):
         return grade
     
 
+    def absolute_grade(self,list_codes):
+        """return the list_puzzles int between 0 and 5"""
+        from concurrent.futures import ThreadPoolExecutor
+
+        if isinstance(list_codes, str):
+            list_codes = [list_codes]
+            completions = []
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                for sub_batch in chunks(list_codes, self.max_workers):
+                    for _,message_list in enumerate(sub_batch):
+                        kwargs = {"code":message_list}
+                        
+                        future = executor.submit(
+                            self.absolute_grade_one_code,**kwargs
+                        )
+                        completions.append(future)
+            # Retrieve the results from the futures
+            grades = [future.result() for future in completions]
+            return grades
+    
+
 
 class Yes_model(OpenAI_Rank):
     def __init__(self,yes_mode="finetuning",**kwargs) -> None:
@@ -110,6 +141,8 @@ class Yes_model(OpenAI_Rank):
         self.yes_mode = yes_mode
         self.soft = torch.nn.Softmax(dim=1)
         super().__init__(**kwargs)
+
+        self.cfg['logprobs'] = True
 
 
     def generate(self,text):
@@ -142,3 +175,27 @@ class Yes_model(OpenAI_Rank):
 
             proba_yes=values[[0],idx].item()
         return proba_yes
+    
+    def absolute_grade(self,list_text):
+        """return the absolute_grade float between 0 and 10"""
+        if self.yes_mode=="education":
+            yes_prompt = yes_education
+        elif self.yes_mode=="finetuning":
+            yes_prompt = yes_finetuning
+        else:
+            raise ValueError(f"Invalid yes_mode: {self.yes_mode}")
+        list_text = [yes_prompt.format(txt) for txt in list_text]
+
+        list_completion = self.multiple_generation(list_text) # remove [0] when main loop is batchable
+
+        values = []
+        list_words = []
+        for completion in list_completion:
+            values.append([np.exp(tok.logprob) for tok in completion.logprobs.content[0].top_logprobs])
+            list_words.append([tok.token for tok in completion.logprobs.content[0].top_logprobs])
+
+        list_proba_yes=[]
+        # values,list_token
+        for idx in range(len(list_words)):
+            list_proba_yes.append(return_proba_yes(values[idx],list_words[idx]))
+        return list_proba_yes
