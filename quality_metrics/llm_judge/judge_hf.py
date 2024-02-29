@@ -1,20 +1,18 @@
+
+from tqdm import tqdm
+from typing import Tuple 
+import torch 
+import numpy as np
+
+from quality_metrics.llm_judge.judge_base import Rank_puzzle
+from quality_metrics.llm_judge.prompt_judge import OpenCodeInterpreter_1, OpenCodeInterpreter_2,yes_finetuning,yes_education
+from quality_metrics.llm_judge.utils_judge import return_proba_yes
+from quality_metrics.llm_judge.utils_hf import return_prompt_format
 from quality_metrics.common import (
     QualityMetric,
     Problem,
     create_model_and_tokenizer,
 )
-from common import get_completion
-from tqdm import tqdm
-from abc import abstractmethod
-from typing import Tuple 
-from prompt_judge import OpenCodeInterpreter_1, OpenCodeInterpreter_2,yes_finetuning,yes_education
-import torch 
-import time
-from judge_base import Rank_puzzle
-import numpy as np
-from utils_judge import return_proba_yes
-from utils_hf import return_prompt_format
-
 # HF model
 
 class HF_Rank(Rank_puzzle):
@@ -75,7 +73,7 @@ class Yes_model(HF_Rank):
         super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,exllama2=exllama2,n_generation=n_generation)
         
         
-    def generate(self,list_text):
+    def generate(self,list_text: list[str]):
         assert isinstance(list_text,list)
         with torch.inference_mode():
             inputs = self.tokenizer(list_text, return_tensors="pt").to("cuda")
@@ -93,8 +91,9 @@ class Yes_model(HF_Rank):
                 list_proba_yes.append(return_proba_yes(values[idx],list_words[idx]))
         return list_proba_yes
     
-    def absolute_grade(self,list_text):
+    def absolute_grade(self,list_text: list[str]):
         """return the absolute_grade float between 0 and 10"""
+        assert isinstance(list_text,list) 
         # query = self.prompt_instruction
         # yes_education,yes_finetuning
         if self.yes_mode=="education":
@@ -104,7 +103,7 @@ class Yes_model(HF_Rank):
         else:
             raise ValueError(f"Invalid yes_mode: {self.yes_mode}")
         for idx in range(len(list_text)):
-            list_text[idx] = self.prompt_format(yes_prompt.format(list_text[idx]))
+            list_text[idx] = self.prompt_format(yes_prompt.format(datapoint=list_text[idx]))
 
         out = self.generate(list_text) # remove [0] when main loop is batchable
         return out
@@ -143,7 +142,7 @@ class Yes_model(HF_Rank):
 #         return extract_single_rating_autoj(out)
 
 
-# # TODO: finish openchat ranking
+# # TODO: finish openchat ranking -> rename prometheus
 
 # class Open_chat(HF_Rank):
 #     def __init__(self, puzzle_dict,mode_rank="absolute",prompt_instruction=None,exllama2=True,model_id="TheBloke/openchat-3.5-1210-GPTQ",revision="gptq-4bit-32g-actorder_True", n_generation=4) -> None:

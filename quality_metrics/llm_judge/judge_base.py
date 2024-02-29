@@ -2,7 +2,7 @@ from quality_metrics.common import (
     QualityMetric,
     Problem,
 )
-from tqdm import tqdm
+from tqdm import tqdm,trange
 from abc import abstractmethod
 from typing import Tuple 
 
@@ -78,10 +78,9 @@ class Rank_puzzle(QualityMetric):
                 puzzle = self.puzzle_dict[key]
                 list_puzzles_to_rank.append(puzzle)
                 list_key_puzzle_to_rank.append(key)
-                grades[key].append(self.absolute_grade(puzzle))
 
         # grades all prompts
-        for i in range(0,len(keys),self.bs):
+        for i in trange(0,len(keys),self.bs):
             list_puzzles_to_rank_bs = list_puzzles_to_rank[i:i+self.bs]
             list_key_puzzle_to_rank_bs = list_key_puzzle_to_rank[i:i+self.bs]
             out = self.absolute_grade(list_puzzles_to_rank_bs)
@@ -119,7 +118,7 @@ class Rank_puzzle(QualityMetric):
                     list_key_puzzle_to_rank.append([key2, key1])
 
         # grades all prompts
-        for i in range(0,len(list_key_puzzle_to_rank),self.bs):
+        for i in trange(0,len(list_key_puzzle_to_rank),self.bs):
             list_puzzles_to_rank_bs = list_puzzles_to_rank[i:i+self.bs]
             list_key_puzzle_to_rank_bs = list_key_puzzle_to_rank[i:i+self.bs]
             results_pairwise = self.pairwise_ranking(list_puzzles_to_rank_bs)

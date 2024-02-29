@@ -1,19 +1,23 @@
 from quality_metrics.common import (
     Problem,
 )
-from judge_base import Rank_puzzle
+from quality_metrics.llm_judge.prompt_judge import(
+    OpenCodeInterpreter_1, OpenCodeInterpreter_2,
+    yes_finetuning, yes_education
+)
+from quality_metrics.llm_judge.judge_base import Rank_puzzle
 from openai import AzureOpenAI,OpenAI
 
-from common import get_completion, get_multiple_completions, chunks
+from quality_metrics.common import get_completion, get_multiple_completions, chunks
 from tqdm import tqdm
-from prompt_judge import OpenCodeInterpreter_1, OpenCodeInterpreter_2
+
+
 import torch 
-from prompt_judge import OpenCodeInterpreter_1, OpenCodeInterpreter_2,yes_finetuning,yes_education
 import numpy as np
 
 from utils_judge import return_proba_yes
-# base openai class
-        
+
+# base openai class        
 class OpenAI_Rank(Rank_puzzle):
     def __init__(self,puzzle_dict, prompt_instruction: str= None, azure: bool=True, openai_key: str=None, 
                  model_id="gpt-3.5-turbo-0125",mode_rank="absolute",n_generation=1,temperature=0, max_workers=20, bs=50,) -> None:
@@ -184,7 +188,7 @@ class Yes_model(OpenAI_Rank):
             yes_prompt = yes_finetuning
         else:
             raise ValueError(f"Invalid yes_mode: {self.yes_mode}")
-        list_text = [yes_prompt.format(txt) for txt in list_text]
+        list_text = [yes_prompt.format(datapoint=txt) for txt in list_text]
 
         list_completion = self.multiple_generation(list_text) # remove [0] when main loop is batchable
 

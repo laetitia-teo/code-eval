@@ -1,0 +1,372 @@
+[
+    {
+        "program_str": "def f(start: int, k=3, lower=150, seq=[3, 1, 2, 65, 18, 91, -30, 100, 0, 19, 52]) -> bool:\n    return 0 <= start <= len(seq) - k and sum(seq[start:start + k]) >= lower\ndef g(k = 3, lower = 150, seq = [3, 1, 2, 65, 18, 91, -30, 100, 0, 19, 52]):\n    return max(range(len(seq) - k + 1), key=lambda start: sum(seq[start:start + k]))\nassert f(g()) == True",
+        "description": [
+            [
+                "The puzzle requires finding the starting index of a subsequence in a given sequence such that the sum of the subsequence is greater than or equal to a specified lower bound."
+            ]
+        ]
+    },
+    {
+        "program_str": "\ndef f(factorial: int) -> bool:\n    return factorial == 120\n\ndef g(number=5) -> int:\n    if number == 0:\n        return 1\n    else:\n        return number * g(number - 1)\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function to calculate the factorial of a number and checking if the factorial of 5 is equal to 120."
+        ]
+    },
+    {
+        "program_str": "from typing import List \ndef f(li: List[int]) -> bool:\n    return li[li[0]] != li[li[1]] and li[li[li[0]]] == li[li[li[1]]]\ndef g():\n    return [1, 2, 3, 3]\nassert f(g()) == True",
+        "description": [
+            [
+                "The puzzle requires the student to implement a function f that takes a list of integers and returns a boolean value based on specific conditions. The solution function g returns a list of integers that satisfies the conditions of function f."
+            ]
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\n\ndef f(matrix: List[List[int]]) -> bool:\n    return all([matrix[i][j] == matrix[j][i] for i in range(len(matrix)) for j in range(len(matrix[i]))])\n\ndef g() -> List[List[int]]:\n    import random\n    n = random.randint(2, 5)\n    matrix = [[random.randint(1, 10) for _ in range(n)] for _ in range(n)]\n    for i in range(n):\n        for j in range(i + 1, n):\n            matrix[j][i] = matrix[i][j]\n    return matrix\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves generating a random symmetric matrix and checking if the matrix satisfies a specific condition."
+        ]
+    },
+    {
+        "program_str": "\ndef f(result: int, num=5) -> bool:\n    import math\n    return math.factorial(num) == result\n\ndef g(num=5):\n    def factorial(n):\n        if n == 0:\n            return 1\n        return n * factorial(n - 1)\n    return factorial(num)\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function f that checks if the factorial of a given number matches a provided result, and a function g that calculates the factorial of a number recursively. The assert statement checks if f(g()) returns True."
+        ]
+    },
+    {
+        "program_str": "\ndef f(s: str) -> bool:\n    s = ''.join([c.lower() for c in s if c.isalnum()])\n    return s == s[::-1]\n\ndef g(s=\"A man a plan a canal Panama\"):\n    return s\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires a function to check if a given string is a palindrome after removing non-alphanumeric characters and converting all characters to lowercase."
+        ]
+    },
+    {
+        "program_str": "\ndef f(n: int, m=2) -> bool:\n    return n % m == 0 and n & (n - 1) == 0\n\ndef g(m=2) -> int:\n    import random\n\n    def generate_number():\n        num = random.randint(1, 100) * m\n        while num & (num - 1) != 0:\n            num = random.randint(1, 100) * m\n        return num\n\n    return generate_number()\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function f(n, m) that checks if a given number n is divisible by m and is a power of 2. The solution function g(m) generates a random number that is a multiple of m and a power of 2, and then checks if this number satisfies the conditions of function f."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\n\ndef f(result: int) -> bool:\n    return result == sum(range(1, 11)) * 2\n\ndef g() -> int:\n    numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\n    return sum(numbers) * 2\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires the student to define a function that checks if the result of summing numbers from 1 to 10 and multiplying by 2 is equal to a given input."
+        ]
+    },
+    {
+        "program_str": "\nimport math\n\ndef f(prime_factors: set, num=30) -> bool:\n    def get_prime_factors(n):\n        factors = set()\n        while n % 2 == 0:\n            factors.add(2)\n            n = n // 2\n        for i in range(3, int(math.sqrt(n))+1, 2):\n            while n % i == 0:\n                factors.add(i)\n                n = n // i\n        if n > 2:\n            factors.add(n)\n        return factors\n    \n    return prime_factors == get_prime_factors(num)\n\ndef g(num=30):\n    def get_prime_factors(n):\n        factors = set()\n        while n % 2 == 0:\n            factors.add(2)\n            n = n // 2\n        for i in range(3, int(math.sqrt(n))+1, 2):\n            while n % i == 0:\n                factors.add(i)\n                n = n // i\n        if n > 2:\n            factors.add(n)\n        return factors\n    \n    return get_prime_factors(num)\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining two functions in Python, where the first function checks if a set of prime factors of a given number matches a predefined set, and the second function calculates the prime factors of a given number. The goal is to ensure that the second function correctly calculates the prime factors of the number."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\n\ndef f(nums: List[int]) -> bool:\n    nums_set = set(nums)\n    for a in nums_set:\n        for b in nums_set:\n            if a != b:\n                c = (a**2 + b**2) ** 0.5\n                if c in nums_set:\n                    return True\n    return False\n\ndef g(nums=[3, 5, 12, 13, 8]):\n    return nums\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires finding three numbers in a list such that they form a Pythagorean triplet (a^2 + b^2 = c^2)."
+        ]
+    },
+    {
+        "program_str": "from typing import List \ndef f(squares: List[List[int]], m=35, n=46, target=1610) -> bool:\n    covered = []\n    for (i1, j1, i2, j2) in squares:\n        assert 0 <= i1 <= i2 < m and 0 <= j1 <= j2 < n and (j2 - j1 + i2 - i1 == 1)\n        covered += [(i1, j1), (i2, j2)]\n    return len(set(covered)) == len(covered) == target\ndef g(m = 35, n = 46, target = 1610):\n    if m % 2 == 0:\n        ans = [[i, j, i + 1, j] for i in range(0, m, 2) for j in range(n)]\n    elif n % 2 == 0:\n        ans = [[i, j, i, j + 1] for i in range(m) for j in range(0, n, 2)]\n    else:\n        ans = [[i, j, i + 1, j] for i in range(1, m, 2) for j in range(n)]\n        ans += [[0, j, 0, j + 1] for j in range(0, n - 1, 2)]\n    return ans\nassert f(g()) == True",
+        "description": [
+            [
+                "The puzzle involves defining a function f that takes a list of squares and checks if they cover a specific target area in a grid. The solution function g generates a list of squares based on the dimensions of the grid and ensures that the target area is covered by these squares."
+            ]
+        ]
+    },
+    {
+        "program_str": "\n\ndef f(smallest_prime_factor: int, num=91) -> bool:\n    if smallest_prime_factor == 0:\n        return False\n    for i in range(2, int(num**0.5) + 1):\n        if num % i == 0:\n            return i == smallest_prime_factor\n    return False\n\ndef g(num=91) -> int:\n    for i in range(2, int(num**0.5) + 1):\n        if num % i == 0:\n            return i\n    return 0\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves two functions, f and g, where f checks if a given number is divisible by its smallest prime factor, and g finds the smallest prime factor of a given number. The puzzle requires g to be called within f to check if the algorithm works correctly."
+        ]
+    },
+    {
+        "program_str": "\nimport string\nimport random\n\ndef f(text: str) -> bool:\n    has_digit = any(char.isdigit() for char in text)\n    has_special = any(char in string.punctuation for char in text)\n    return has_digit and has_special\n\ndef g() -> str:\n    length = random.randint(8, 12)\n    digits = ''.join(random.choices(string.digits, k=length // 2))\n    specials = ''.join(random.choices(string.punctuation, k=(length + 1) // 2))\n    mixed = list(digits + specials)\n    random.shuffle(mixed)\n    return ''.join(mixed)\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves generating a random string with a mix of digits and special characters, and then checking if the string contains at least one digit and at least one special character."
+        ]
+    },
+    {
+        "program_str": "\ndef f(n: int) -> bool:\n    def is_palindrome(num):\n        return str(num) == str(num)[::-1]\n    \n    def sum_of_digits(num):\n        return sum(int(digit) for digit in str(num))\n    \n    return is_palindrome(n) and n % sum_of_digits(n) == 0\n\ndef g(nums=[12321, 45654, 78987]):\n    for num in nums:\n        if str(num) == str(num)[::-1] and num % sum(int(digit) for digit in str(num)) == 0:\n            return num\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves checking if a number is a palindrome and if it is divisible by the sum of its digits."
+        ]
+    },
+    {
+        "program_str": "\nimport itertools\n\ndef f(numbers: list) -> bool:\n    for triplet in itertools.combinations(numbers, 3):\n        if triplet[0]**2 + triplet[1]**2 == triplet[2]**2:\n            return True\n    return False\n\ndef g(size=5):\n    numbers = [i for i in range(1, size+1)]\n    for triplet in itertools.combinations(numbers, 3):\n        if triplet[0]**2 + triplet[1]**2 == triplet[2]**2:\n            return list(triplet)\n    return numbers\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves finding a Pythagorean triplet from a list of numbers using itertools combinations."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\ndef f(words: List[str], palindrome='racecar') -> bool:\n    combined = ''.join(words)\n    return combined == combined[::-1]\ndef g(palindrome='racecar'):\n    return [char for char in palindrome]\nassert f(g()) == True\n",
+        "description": [
+            "Given a list of words, the puzzle checks if the combined words form a palindrome. The solution function creates a list of characters from a predefined palindrome and checks if it forms a palindrome."
+        ]
+    },
+    {
+        "program_str": "\ndef f(s: str) -> bool:\n    return s == s[::-1]\n\ndef g(string_length: int = 5) -> str:\n    import random\n    letters = 'abcdefghijklmnopqrstuvwxyz'\n    palindrome = ''.join(random.choice(letters) for _ in range(string_length))\n    return palindrome + palindrome[::-1]\n\nassert f(g()) == True\n",
+        "description": [
+            "Given a function f(s) that checks if a string is a palindrome, and a function g(string_length) that generates a random palindrome string of a specified length, the puzzle requires finding a palindrome string of length 5 using function g that satisfies the palindrome check in function f."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List, Tuple\ndef f(grid: List[List[int]]) -> bool:\n    def bfs(start, end):\n        queue = [start]\n        visited = set()\n        while queue:\n            node = queue.pop(0)\n            if node == end:\n                return True\n            visited.add(node)\n            for neighbor in [(node[0] + 1, node[1]), (node[0] - 1, node[1]), (node[0], node[1] + 1), (node[0], node[1] - 1)]:\n                if neighbor[0] >= 0 and neighbor[0] < len(grid) and neighbor[1] >= 0 and neighbor[1] < len(grid[0]) and grid[neighbor[0]][neighbor[1]] == 0 and neighbor not in visited:\n                    queue.append(neighbor)\n        return False\n\n    start, end = (0, 0), (len(grid) - 1, len(grid[0]) - 1)\n    return bfs(start, end)\n\ndef g():\n    return [[0, 0, 0], [1, 1, 0], [0, 0, 0]]\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves a function f(grid) that implements a breadth-first search algorithm to find a path from the top-left corner of a grid to the bottom-right corner, avoiding obstacles represented by non-zero values. The solution function g() returns a grid with obstacles and asserts that f(g()) returns True."
+        ]
+    },
+    {
+        "program_str": "\n\nimport random\n\ndef f(probability: float, target=1/6) -> bool:\n    return abs(probability - target) < 0.01\n\ndef g():\n    outcomes = 0\n    total_trials = 10000\n    for _ in range(total_trials):\n        dice1 = random.randint(1, 6)\n        dice2 = random.randint(1, 6)\n        if dice1 + dice2 == 7:\n            outcomes += 1\n    return outcomes / total_trials\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves generating random dice rolls and calculating the probability of the sum being equal to 7. The solution function g() simulates multiple dice rolls and calculates the probability of the sum being 7, then checks if this probability is within a small margin of error from the expected value."
+        ]
+    },
+    {
+        "program_str": "\ndef f(num: int) -> bool:\n    if num < 2:\n        return False\n    for i in range(2, int(num ** 0.5) + 1):\n        if num % i == 0:\n            return False\n    return True\n\ndef g() -> int:\n    import sympy\n    return sympy.randprime(1, 100)\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function f(num) that checks if a given number is a prime number, and another function g() that generates a random prime number between 1 and 100. The puzzle requires g() to return a prime number that satisfies the condition of f(g()) == True."
+        ]
+    },
+    {
+        "program_str": "\ndef f(string: str) -> bool:\n    return string == string[::-1]\n\ndef g(length=5):\n    return \"a\" * length + \"b\" + \"a\" * length\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle checks if a string generated by function g() is a palindrome or not."
+        ]
+    },
+    {
+        "program_str": "\ndef f(string: str) -> bool:\n    return string == string[::-1]\n\ndef g() -> str:\n    import random\n    letters = 'abcdefghijklmnopqrstuvwxyz'\n    word = ''.join(random.choices(letters, k=random.randint(5, 10)))\n    return word + word[::-1]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle checks if a randomly generated string concatenated with its reverse is a palindrome."
+        ]
+    },
+    {
+        "program_str": "\ndef f(s: str) -> bool:\n    return s == s[::-1]\n\ndef g():\n    return \"radar\"\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle checks if a given string is a palindrome or not."
+        ]
+    },
+    {
+        "program_str": "\nimport heapq\n\ndef f(shortest_path: int, graph={1: {2: 1, 3: 2}, 2: {3: 1, 4: 5}, 3: {4: 2}, 4: {}}) -> bool:\n    distances = {node: float('inf') for node in graph}\n    distances[1] = 0\n    queue = [(0, 1)]\n    while queue:\n        current_distance, current_node = heapq.heappop(queue)\n        if current_distance > distances[current_node]:\n            continue\n        for neighbor, weight in graph[current_node].items():\n            distance = current_distance + weight\n            if distance < distances[neighbor]:\n                distances[neighbor] = distance\n                heapq.heappush(queue, (distance, neighbor))\n    return distances[len(graph)] == shortest_path\n\ndef g(graph={1: {2: 1, 3: 2}, 2: {3: 1, 4: 5}, 3: {4: 2}, 4: {}}) -> int:\n    distances = {node: float('inf') for node in graph}\n    distances[1] = 0\n    queue = [(0, 1)]\n    while queue:\n        current_distance, current_node = heapq.heappop(queue)\n        if current_distance > distances[current_node]:\n            continue\n        for neighbor, weight in graph[current_node].items():\n            distance = current_distance + weight\n            if distance < distances[neighbor]:\n                distances[neighbor] = distance\n                heapq.heappush(queue, (distance, neighbor))\n    return distances[len(graph)]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves finding the shortest path in a graph using Dijkstra's algorithm. The puzzle function f checks if the shortest path length matches a given value, and the solution function g calculates the shortest path length."
+        ]
+    },
+    {
+        "program_str": "\ndef f(s: str) -> bool:\n    return s == s[::-1]\n\ndef g(input_str=\"racecar\"):\n    return input_str + input_str[::-1]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining two functions, f(s: str) -> bool and g(input_str='racecar'), where f checks if a string is a palindrome and g generates a palindrome by concatenating a string with its reverse. The assert statement checks if the solution function g() satisfies the condition of the puzzle."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\n\ndef f(subsequence: List[int]) -> bool:\n    return all(subsequence[i] < subsequence[i+1] for i in range(len(subsequence) - 1))\n\ndef g(numbers=[3, 10, 2, 1, 20]):\n    dp = [1] * len(numbers)\n    for i in range(1, len(numbers)):\n        for j in range(i):\n            if numbers[i] > numbers[j]:\n                dp[i] = max(dp[i], dp[j] + 1)\n    max_length = max(dp)\n    start_index = dp.index(max_length)\n    return numbers[start_index:start_index+max_length]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function f that checks if a given list of integers is in strictly increasing order, and a function g that finds the longest increasing subsequence in a list of integers. The solution function g returns the longest increasing subsequence of the input list."
+        ]
+    },
+    {
+        "program_str": "\nfrom collections import Counter\n\ndef f(char: str, text=\"abracadabra\") -> bool:\n    char_count = Counter(text)\n    most_common_char, count = char_count.most_common(1)[0]\n    return most_common_char == char and count % 2 != 0\n\ndef g(text=\"abracadabra\"):\n    char_count = Counter(text)\n    return char_count.most_common(1)[0][0]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function f that checks if the most common character in a given text is a specific character and if its count is odd. The solution function g returns the most common character in the text. The assertion checks if f(g()) returns True."
+        ]
+    },
+    {
+        "program_str": "\nimport itertools\n\ndef f(combination: tuple) -> bool:\n    return sum(combination) == 10\n\ndef g():\n    nums = [1, 2, 3, 4, 5]\n    for r in range(1, len(nums)+1):\n        for comb in itertools.combinations(nums, r):\n            if sum(comb) == 10:\n                return comb\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires finding a combination of numbers from a given list that adds up to 10 using itertools.combinations."
+        ]
+    },
+    {
+        "program_str": "\ndef f(s: str, is_palindrome=True) -> bool:\n    s = s.lower().replace(\" \", \"\")\n    return s == s[::-1]\n\ndef g() -> str:\n    return \"A man a plan a canal Panama\"\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves a function that checks if a given string is a palindrome after removing spaces and converting all characters to lowercase. The solution function returns a specific string that is a palindrome."
+        ]
+    },
+    {
+        "program_str": "\ndef f(num: int) -> bool:\n    if num < 2:\n        return False\n    for i in range(2, int(num**0.5) + 1):\n        if num % i == 0:\n            return False\n    return True\n\ndef g() -> int:\n    import random\n    return random.choice([2, 3, 5, 7, 11, 13, 17, 19, 23, 29])\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves two functions: f(num) checks if a given number is a prime number, and g() randomly selects a prime number from a predefined list. The puzzle requires g() to return a prime number and f(g()) to evaluate to True."
+        ]
+    },
+    {
+        "program_str": "\ndef f(max_sum: int) -> bool:\n    return max_sum == 6\n\ndef g(numbers=[-2, 1, -3, 4, -1, 2, 1, -5, 4]):\n    max_sum = current_sum = numbers[0]\n    for num in numbers[1:]:\n        current_sum = max(num, current_sum + num)\n        max_sum = max(max_sum, current_sum)\n    return max_sum\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires finding the maximum sum of a subarray within a given list of numbers and checking if the maximum sum is equal to 6."
+        ]
+    },
+    {
+        "program_str": "\nimport math\n\ndef f(area: float) -> bool:\n    return math.isclose(area, 6.0, rel_tol=1e-9)\n\ndef g(side1=3, side2=4, side3=5) -> float:\n    s = (side1 + side2 + side3) / 2\n    area = math.sqrt(s * (s - side1) * (s - side2) * (s - side3))\n    return area\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves checking if the area of a triangle with sides 3, 4, and 5 is approximately equal to 6.0 using the isclose function from the math module."
+        ]
+    },
+    {
+        "program_str": "\ndef f(num: int) -> bool:\n    if num <= 1:\n        return False\n    for i in range(2, int(num**0.5) + 1):\n        if num % i == 0:\n            return False\n    return True\n\ndef g() -> int:\n    return 17\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires defining a function f(num) that checks if a given number is a prime number. The solution function g() returns the number 17, and the puzzle is to verify if 17 is a prime number."
+        ]
+    },
+    {
+        "program_str": "\nimport itertools\n\ndef f(permutation: tuple) -> bool:\n    return sum(permutation) == 10\n\ndef g() -> tuple:\n    numbers = [1, 2, 3, 4]\n    return next(itertools.permutations(numbers))\n\nassert f(g()) == True\n",
+        "description": [
+            "Given a list of numbers [1, 2, 3, 4], the puzzle requires finding a permutation of these numbers such that their sum is equal to 10."
+        ]
+    },
+    {
+        "program_str": "\ndef f(num: int) -> bool:\n    if num < 2:\n        return False\n    for i in range(2, int(num**0.5) + 1):\n        if num % i == 0:\n            return False\n    return True\n\ndef g():\n    return 17\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires the student to define a function f(num: int) that checks if a given number is a prime number. The student also needs to define a function g() that returns a specific number, and the puzzle asserts that f(g()) should return True."
+        ]
+    },
+    {
+        "program_str": "\ndef f(s: str) -> bool:\n    return s == s[::-1]\n\ndef g() -> str:\n    return \"radar\"\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle checks if a given string is a palindrome or not."
+        ]
+    },
+    {
+        "program_str": "def f(n: int, nums=[77410, 23223, 54187], lower_bound=2) -> bool:\n    return all((i % n == 0 for i in nums)) and n >= lower_bound\ndef g(nums = [77410, 23223, 54187], lower_bound = 2):\n    n = 0\n    for i in nums:\n        m, n = min(i, n), max(i, n)\n        while m > 0:\n            m, n = n % m, m\n    return n\nassert f(g()) == True",
+        "description": [
+            [
+                "The puzzle requires finding the greatest common divisor (GCD) of a list of numbers and checking if the GCD is greater than or equal to a specified lower bound."
+            ]
+        ]
+    },
+    {
+        "program_str": "\n\nfrom typing import List\n\ndef f(matrix: List[List[int]]) -> bool:\n    return all([matrix[i][j] == matrix[j][i] for i in range(len(matrix)) for j in range(len(matrix[0]))])\n\ndef g() -> List[List[int]]:\n    return [[1, 2, 3],\n            [2, 4, 5],\n            [3, 5, 6]]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires defining a function f that checks if a given matrix is symmetric along its main diagonal. The solution function g returns a specific matrix, and the puzzle is to verify if f(g()) returns True."
+        ]
+    },
+    {
+        "program_str": "\ndef f(fib_num: int, index=6) -> bool:\n    fib_sequence = [0, 1]\n    while len(fib_sequence) <= index:\n        fib_sequence.append(fib_sequence[-1] + fib_sequence[-2])\n    return fib_num == fib_sequence[index]\n\ndef g(index=6) -> int:\n    fib_sequence = [0, 1]\n    while len(fib_sequence) <= index:\n        fib_sequence.append(fib_sequence[-1] + fib_sequence[-2])\n    return fib_sequence[index]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves two functions, f and g, related to Fibonacci sequences. Function f checks if a given Fibonacci number matches the number at a specific index in the Fibonacci sequence up to that index. Function g generates the Fibonacci number at a specific index. The puzzle tests if function f returns True when given the output of function g as input."
+        ]
+    },
+    {
+        "program_str": "\nimport re\n\ndef f(email: str) -> bool:\n    pattern = r'^[\\w\\.-]+@[\\w\\.-]+\\.\\w+$'\n    return bool(re.match(pattern, email))\n\ndef g() -> str:\n    import random\n    import string\n    domains = ['.com', '.net', '.org']\n    email = ''.join(random.choices(string.ascii_letters + string.digits, k=8)) + '@' + ''.join(random.choices(string.ascii_lowercase, k=5)) + random.choice(domains)\n    return email\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves a function f that checks if a given email address is valid based on a regular expression pattern. The solution function g generates a random email address and the puzzle is to ensure that f returns True when applied to the output of g."
+        ]
+    },
+    {
+        "program_str": "\ndef f(palindrome: str) -> bool:\n    return palindrome == palindrome[::-1]\n\ndef g():\n    return \"deified\"\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle checks if a given string is a palindrome or not."
+        ]
+    },
+    {
+        "program_str": "\nimport string\n\ndef f(s: str) -> bool:\n    alphanumeric = [char for char in s if char.isalnum()]\n    return alphanumeric == alphanumeric[::-1] and any(char.isdigit() for char in s)\n\ndef g(length: int = 10) -> str:\n    import random\n\n    def generate_random_string(length):\n        chars = random.choices(string.ascii_letters + string.digits, k=length)\n        return ''.join(chars)\n\n    palindrome = generate_random_string(length)\n    return palindrome + random.choice(string.digits) + palindrome[::-1]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function f(s) that checks if a given string is a palindrome with at least one digit, and another function g(length) that generates a random palindrome string with a digit in the middle."
+        ]
+    },
+    {
+        "program_str": "\n\nfrom typing import List\n\ndef f(sorted_list: List[int]) -> bool:\n    return sorted_list == sorted(sorted_list)\n\ndef g(numbers=[5, 2, 7, 1, 4, 3]):\n    n = len(numbers)\n    for i in range(n):\n        for j in range(0, n-i-1):\n            if numbers[j] > numbers[j+1]:\n                numbers[j], numbers[j+1] = numbers[j+1], numbers[j]\n    return numbers\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires the student to implement a function that checks if a given list of integers is sorted in ascending order. The solution provided is a bubble sort algorithm that sorts the list in ascending order."
+        ]
+    },
+    {
+        "program_str": "\ndef f(num: int) -> bool:\n    if num < 2:\n        return False\n    for i in range(2, int(num**0.5) + 1):\n        if num % i == 0:\n            return False\n    return True\n\ndef g(num=7):\n    return num\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves two functions, f(num) and g(num=7), where f checks if a given number is a prime number and g returns a fixed number. The puzzle requires g to return a number such that f returns True when applied to that number."
+        ]
+    },
+    {
+        "program_str": "\ndef f(longest_subsequence_length: int, nums=[3, 10, 2, 1, 20]) -> bool:\n    if not nums:\n        return 0\n    \n    n = len(nums)\n    dp = [1] * n\n\n    for i in range(1, n):\n        for j in range(i):\n            if nums[i] > nums[j]:\n                dp[i] = max(dp[i], dp[j] + 1)\n\n    return max(dp) == longest_subsequence_length\n\ndef g(nums=[3, 10, 2, 1, 20]):\n    if not nums:\n        return 0\n    \n    n = len(nums)\n    dp = [1] * n\n\n    for i in range(1, n):\n        for j in range(i):\n            if nums[i] > nums[j]:\n                dp[i] = max(dp[i], dp[j] + 1)\n\n    return max(dp)\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining two functions, f and g, where f checks if the longest subsequence length of a given list of numbers matches a specified length, and g calculates the longest subsequence length of the same list of numbers."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\n\ndef f(subsequence: List[int]) -> bool:\n    return all(subsequence[i] < subsequence[i + 1] for i in range(len(subsequence) - 1))\n\ndef g(arr=[3, 2, 6, 4, 5, 1]):\n    n = len(arr)\n    dp = [1] * n\n    for i in range(1, n):\n        for j in range(i):\n            if arr[i] > arr[j]:\n                dp[i] = max(dp[i], dp[j] + 1)\n    max_len = max(dp)\n    start_index = dp.index(max_len)\n    subsequence = [arr[start_index]]\n    for i in range(start_index - 1, -1, -1):\n        if arr[i] < arr[start_index] and dp[i] == max_len - 1:\n            subsequence.insert(0, arr[i])\n            max_len -= 1\n            start_index = i\n    return subsequence\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining two functions in Python. The first function f(subsequence: List[int]) checks if a given list of integers is in strictly increasing order. The second function g(arr=[3, 2, 6, 4, 5, 1]) finds the longest increasing subsequence in a given list of integers."
+        ]
+    },
+    {
+        "program_str": "\nimport string\n\ndef f(palindrome: str) -> bool:\n    cleaned_palindrome = ''.join(char.lower() for char in palindrome if char.isalnum())\n    return cleaned_palindrome == cleaned_palindrome[::-1]\n\ndef g() -> str:\n    return \"A Santa at NASA\"\n\nassert f(g()) == True\n",
+        "description": [
+            "Given a function f that checks if a string is a palindrome after removing non-alphanumeric characters, write a function g that returns a string to test if it is a palindrome."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\n\ndef f(matrix: List[List[int]]) -> bool:\n    target_sequence = [1, 2, 3, 4]  # Sequence to find in the matrix\n    \n    def find_sequence_in_row(row):\n        for i in range(len(row) - len(target_sequence) + 1):\n            if row[i:i+len(target_sequence)] == target_sequence:\n                return True\n        return False\n\n    for row in matrix:\n        if find_sequence_in_row(row):\n            return True\n    return False\n\ndef g(matrix=[[1, 2, 3, 4, 5],\n             [6, 7, 8, 9, 10],\n             [11, 12, 1, 2, 3],\n             [4, 5, 6, 7, 8]]):\n    return matrix\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle requires finding a specific sequence of numbers in a matrix and returning True if the sequence is found in any row of the matrix."
+        ]
+    },
+    {
+        "program_str": "\ndef f(xor_result: int, set1={1, 2, 3, 4}, set2={3, 4, 5, 6}) -> bool:\n    result = set1.symmetric_difference(set2)\n    return xor_result == sum(result)\n\ndef g(set1={1, 2, 3, 4}, set2={3, 4, 5, 6}) -> int:\n    result = set1.symmetric_difference(set2)\n    return sum(result)\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining two functions, f and g, where f checks if the XOR result of symmetric difference of two sets is equal to the sum of the symmetric difference, and g calculates the sum of the symmetric difference of two sets. The assertion checks if f(g()) returns True."
+        ]
+    },
+    {
+        "program_str": "\ndef f(result: int, number=5) -> bool:\n    factorial = 1\n    for i in range(1, number + 1):\n        factorial *= i\n    return factorial == result\n\ndef g(number=5):\n    factorial = 1\n    for i in range(1, number + 1):\n        factorial *= i\n    return factorial\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function f that checks if the factorial of a given number matches a given result, and a function g that calculates the factorial of a given number. The assert statement checks if f(g()) returns True."
+        ]
+    },
+    {
+        "program_str": "\ndef f(solution, s='radar') -> bool:\n    return solution == solution[::-1]\n\ndef g(s='radar'):\n    return s + s[-2::-1]\n\nassert f(g()) == True\n",
+        "description": [
+            "Given a function f that checks if a string is a palindrome and a function g that creates a palindrome from a given string, the puzzle requires finding a string that is a palindrome."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List, Tuple\n\ndef f(points: List[Tuple[int, int]]) -> bool:\n    def is_convex(points):\n        def cross_product(p1, p2, p3):\n            return (p2[0] - p1[0]) * (p3[1] - p1[1]) - (p2[1] - p1[1]) * (p3[0] - p1[0])\n\n        n = len(points)\n        if n < 3:\n            return False\n\n        sign = None\n        for i in range(n):\n            p1, p2, p3 = points[i], points[(i + 1) % n], points[(i + 2) % n]\n            current_sign = cross_product(p1, p2, p3)\n            if current_sign != 0:\n                if sign is None:\n                    sign = current_sign\n                elif sign != current_sign:\n                    return False\n        return True\n\n    return is_convex(points)\n\ndef g(num_points=4):\n    return [(i, i) for i in range(num_points)]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves checking if a given set of points forms a convex polygon or not using cross product calculations."
+        ]
+    },
+    {
+        "program_str": "\ndef f(s: str) -> bool:\n    return s == s[::-1]\n\ndef g():\n    return \"radar\"\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle checks if a given string is a palindrome or not."
+        ]
+    },
+    {
+        "program_str": "\nimport random\n\ndef f(nums: list, threshold=10) -> bool:\n    max_diff = max(nums) - min(nums)\n    return max_diff > threshold\n\ndef g(size: int = 10) -> list:\n    return [random.randint(1, 100) for _ in range(size)]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining a function f that checks if the difference between the maximum and minimum values in a list of numbers is greater than a threshold. Another function g generates a list of random numbers. The puzzle requires ensuring that f returns True when applied to the output of g."
+        ]
+    },
+    {
+        "program_str": "\ndef f(result: int, div=5) -> bool:\n    return result % div == 0\n\ndef g(n=5):\n    if n == 0:\n        return 1\n    return n * g(n - 1)\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining two functions, f and g, where f checks if the result of g is divisible by a given number. The assert statement checks if the result of g satisfies the condition in f."
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\n\ndef f(board: List[List[int]]) -> bool:\n    def is_valid(arr):\n        arr = [i for i in arr if i != 0]\n        return len(arr) == len(set(arr))\n    \n    for row in board:\n        if not is_valid(row):\n            return False\n        \n    for col in range(9):\n        if not is_valid([board[i][col] for i in range(9)]):\n            return False\n        \n    for i in range(3):\n        for j in range(3):\n            subgrid = [board[x][y] for x in range(3*i, 3*i+3) for y in range(3*j, 3*j+3)]\n            if not is_valid(subgrid):\n                return False\n    return True\n\ndef g(board=[[5, 3, 0, 0, 7, 0, 0, 0, 0],\n            [6, 0, 0, 1, 9, 5, 0, 0, 0],\n            [0, 9, 8, 0, 0, 0, 0, 6, 0],\n            [8, 0, 0, 0, 6, 0, 0, 0, 3],\n            [4, 0, 0, 8, 0, 3, 0, 0, 1],\n            [7, 0, 0, 0, 2, 0, 0, 0, 6],\n            [0, 6, 0, 0, 0, 0, 2, 8, 0],\n            [0, 0, 0, 4, 1, 9, 0, 0, 5],\n            [0, 0, 0, 0, 8, 0, 0, 7, 9]]):\n    return board\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves checking if a given Sudoku board is valid or not by ensuring that each row, column, and 3x3 subgrid contains unique numbers from 1 to 9."
+        ]
+    },
+    {
+        "program_str": "def f(x: int, a=-8783800228130606, b=-508993556991975) -> bool:\n    return a - x == b\ndef g(a = -8783800228130606, b = -508993556991975):\n    return a - b\nassert f(g()) == True",
+        "description": [
+            [
+                "The puzzle requires students to understand default function arguments and function composition in Python."
+            ]
+        ]
+    },
+    {
+        "program_str": "\nfrom typing import List\n\ndef f(permutations: List[str]) -> bool:\n    return set(permutations) == {'ABC', 'ACB', 'BAC', 'BCA', 'CAB', 'CBA'}  # Check if all valid permutations are generated\n\ndef g(s: str = 'ABC') -> List[str]:\n    def backtrack(path, s, result):\n        if not s:\n            result.append(''.join(path))\n            return\n\n        for i in range(len(s)):\n            path.append(s[i])\n            backtrack(path, s[:i] + s[i+1:], result)\n            path.pop()\n\n    result = []\n    backtrack([], s, result)\n    return result\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves generating all permutations of a given string 'ABC' and checking if the generated permutations match a specific set of valid permutations."
+        ]
+    },
+    {
+        "program_str": "\ndef f(input_str: str) -> bool:\n    return input_str == input_str[::-1]\n\ndef g(input_str=\"radar\"):\n    return input_str + input_str[-2::-1]\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves defining two functions, f and g, where f checks if a given string is a palindrome and g generates a palindrome string based on the input string. The assertion checks if the generated palindrome string satisfies the palindrome condition."
+        ]
+    },
+    {
+        "program_str": "\nimport string\n\ndef f(s: str) -> bool:\n    s = ''.join(char.lower() for char in s if char.isalnum())\n    return s == s[::-1]\n\ndef g(s=\"A man, a plan, a canal, Panama!\"):\n    return ''.join(char for char in s if char.isalnum())\n\nassert f(g()) == True\n",
+        "description": [
+            "The puzzle involves checking if a given string is a palindrome after removing all non-alphanumeric characters and ignoring case."
+        ]
+    }
+]
