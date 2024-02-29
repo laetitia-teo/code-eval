@@ -5,7 +5,7 @@ from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
 )
-
+from openai import OpenAI
 from typing import Optional, List, Any, Dict
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -57,6 +57,9 @@ class Problem:
     
     def get_token_counts(self, tokenizer):
         return len(tokenizer(self.instruction).input_ids) + len(tokenizer(self.completion).input_ids)
+    def get_problem(self):
+        return "```python+\n"+self.instruction + "\n" + self.completion + "\n```"
+        """return the problem as a string"""
 
 
 def dataset_from_p3(dataset):
@@ -74,16 +77,17 @@ class QualityMetric(ABC):
         raise NotImplementedError
 
 
-### model utils
-
-def create_model_and_tokenizer(model_id, compile=True, dtype=torch.bfloat16, flash_attn=True):
+def create_model_and_tokenizer(model_id, compile=True, dtype=torch.bfloat16, flash_attn=True,exllama2=False):
     if 'codellama' in model_id:
         tokenizer = CodeLlamaTokenizer.from_pretrained(model_id, trust_remote_code=True)
     elif 'llama' in model_id:
         tokenizer = LlamaTokenizer.from_pretrained(model_id, trust_remote_code=True)
     else:
         tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-
+    gptq_config = None
+    if exllama2:
+        from transformers import GPTQConfig
+        gptq_config = GPTQConfig(bits=4, exllama_config={"version":2})
     # todo: simplify
     if flash_attn:
         try:
@@ -91,7 +95,7 @@ def create_model_and_tokenizer(model_id, compile=True, dtype=torch.bfloat16, fla
             model = AutoModelForCausalLM.from_pretrained(
                 model_id,
                 torch_dtype=dtype,
-                # quantization_config=quantization_config,
+                quantization_config=gptq_config,
                 device_map="auto",
                 attn_implementation="flash_attention_2",
                 trust_remote_code=True,
@@ -100,7 +104,7 @@ def create_model_and_tokenizer(model_id, compile=True, dtype=torch.bfloat16, fla
             model = AutoModelForCausalLM.from_pretrained(
                 model_id,
                 torch_dtype=dtype,
-                # quantization_config=quantization_config,
+                quantization_config=gptq_config,
                 device_map="auto",
                 # local_files_only=True,
                 trust_remote_code=True
@@ -109,7 +113,7 @@ def create_model_and_tokenizer(model_id, compile=True, dtype=torch.bfloat16, fla
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
             torch_dtype=dtype,
-            # quantization_config=quantization_config,
+            quantization_config=gptq_config,
             device_map="auto",
             # local_files_only=True,
             trust_remote_code=True
@@ -123,3 +127,64 @@ def create_model_and_tokenizer(model_id, compile=True, dtype=torch.bfloat16, fla
         model = torch.compile(model)
 
     return model, tokenizer
+
+
+#OpenAI inference
+
+from concurrent.futures import ThreadPoolExecutor
+def get_completion(client, prompt :str, cfg_generation :dict, system_prompt :str = None, temperature=None)->str:
+    """Get completion from OpenAI API
+    cfg_generation: kwarg of client.chat.completions.create (model,temperature, max_tokens, top_p, logbprobs,...)
+    """
+    kwargs={}
+    kwargs.update(cfg_generation)
+    if temperature is not None:
+        kwargs["temperature"]= temperature
+    if system_prompt == None:
+        sys_message = "You are a helpful assistant."
+    else:
+        sys_message = system_prompt
+    try :
+        completion = client.chat.completions.create(
+        messages=[
+            {"role": "system", "content": sys_message},#You are a coding assistant, skilled in writting code with creative flair."},
+            {"role": "user", "content": prompt}
+        ],**kwargs
+        )
+    except Exception as e:
+        print("completion problem: ",e)
+        return None 
+
+    out = completion.choices[0].message.content
+    return out
+
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
+
+def get_multiple_completions(client, batch_prompt: list[str], cfg_generation: dict,max_workers=10,temperature=None)->list[str]:
+    """
+    Get batch completions from OpenAI API
+    #TODO:  need to integrate batch tools in the loop 
+    """
+    # check that batch_prompt is list[str]
+    if isinstance(batch_prompt, str):
+        batch_prompt = [batch_prompt]
+    completions = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for sub_batch in chunks(batch_prompt, max_workers):
+            for _,message_list in enumerate(sub_batch):
+                kwargs = {"client":client, "prompt":message_list}
+                kwargs["cfg_generation"]=cfg_generation
+                if temperature is not None:
+                    kwargs["temperature"]= temperature
+                future = executor.submit(
+                    get_completion,**kwargs
+                )
+                completions.append(future)
+    # Retrieve the results from the futures
+    results = [future.result() for future in completions]
+    return results

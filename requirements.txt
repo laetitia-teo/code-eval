@@ -6,3 +6,4 @@ trl
 wandb
 datasets
 pebble
+openai
