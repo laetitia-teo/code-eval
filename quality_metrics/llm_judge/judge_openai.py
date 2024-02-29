@@ -1,0 +1,144 @@
+from quality_metrics.common import (
+    QualityMetric,
+    Problem,
+    create_model_and_tokenizer,
+)
+from judge_base import Rank_puzzle
+from openai import AzureOpenAI,OpenAI
+
+from common import get_completion
+from tqdm import tqdm
+from abc import abstractmethod
+from typing import Tuple 
+from prompt_judge import OpenCodeInterpreter_1, OpenCodeInterpreter_2
+import torch 
+import time
+
+
+
+# base openai class
+        
+class OpenAI_Rank(Rank_puzzle):
+    def __init__(self,puzzle_dict, prompt_instruction: str= None, azure: bool=True, openai_key: str=None, 
+                 model_id="gpt-3.5-turbo-0125",mode_rank="absolute",n_generation=1,temperature=0) -> None:
+        """
+        Args:
+        - puzzle_dict: a dictionary of puzzles to rank
+        - prompt_instruction: the prompt to use for the ranking
+        - exllama2: whether to use exllama2
+        - model_id: the model_id to use
+        - revision: the revision to use
+        - n_generation: the number of time to do pairwise ranking on a pair of puzzles or absolute ranking of a puzzle
+        - azure : whether to use azure or openai
+        - openai_key: the openai_key to use
+        kwargs:
+        - mode_rank: the mode to rank the puzzles, either "pairwise" or "absolute"
+
+        """
+        self.azure = azure
+        self.temperature = temperature
+        self.model_id = model_id
+        self.openai_key = openai_key
+        super().__init__(puzzle_dict=puzzle_dict,prompt_instruction=prompt_instruction,mode_rank=mode_rank,n_generation=n_generation)
+
+    def init_model(self):
+        self.cfg: dict = {
+        "temperature": self.temperature,
+        # "top_p": 1.,
+        # TODO: rename config option?
+        "model": self.model_id,
+        "logprobs": False,
+        # "top_logprobs": 5,
+        "max_tokens": 200,
+        }
+        max_retries=10
+        timeout=10
+        if self.azure:
+            self.client = AzureOpenAI(api_key=self.openai_key,max_retries=max_retries, timeout=timeout)
+        else:
+            self.client = OpenAI(api_key=self.openai_key,max_retries=max_retries, timeout=timeout)
+
+    def generate(self,text):
+        out = get_completion(self.client, text, self.cfg)
+        return out
+    
+
+class OpenCodeInterpreter(OpenAI_Rank):
+    def __init__(self,Opencode_mode="1",**kwargs) -> None:
+        """ 
+        Opencode_mode: "1" or "2" see prompt
+        prompt_instruction not used
+        """
+        if Opencode_mode=="1":
+            self.prompt_1= OpenCodeInterpreter_1
+        elif Opencode_mode=="2":
+            self.prompt_1= OpenCodeInterpreter_2
+        super().__init__(**kwargs)
+        
+    def absolute_grade(self,puzzle):
+        """return the absolute_grade float between 0 and 10"""
+
+        input_single = self.prompt_1.format(query=puzzle)
+        n_try=3
+        grade=-1
+        while n_try>0:
+            try:
+                out = self.generate(input_single)
+                grade=eval(out.split("[")[1].split("]")[0])
+                assert grade in [1,2,3,4,5]
+                return grade
+            except:
+                try:
+                    grade = eval(out.split("\n")[0].split(":")[1].strip())
+                    assert grade in [1,2,3,4,5]
+                    return grade
+                except:
+                    pass
+                print(f"Error in the generation of the grade")
+                print( out)
+                n_try-=1
+        return grade
+    
+
+
+class Yes_model(OpenAI_Rank):
+    def __init__(self,yes_mode="finetuning",**kwargs) -> None:
+        """ 
+        Opencode_mode: "1" or "2" see prompt
+        prompt_instruction not used
+        """
+        self.yes_mode = yes_mode
+        self.soft = torch.nn.Softmax(dim=1)
+        super().__init__(**kwargs)
+
+
+    def generate(self,text):
+        with torch.inference_mode():
+            inputs = self.tokenizer(text, return_tensors="pt").to("cuda")
+            out_yes = self.model(**inputs)
+            k=10
+            yes_logits=self.soft(out_yes.logits[:,-1]).cpu().detach() #logits associated with the token "yes"
+            values,indices=torch.topk(yes_logits, k)
+            list_token=self.tokenizer.batch_decode(indices.T)
+            flag_no = False
+            if "Yes" in list_token:
+                idx = list_token.index("Yes")
+                proba_yes = values[[0],idx].item()
+            elif "No" in list_token:
+                idx = list_token.index("No")
+                flag_no = True
+                proba_No = values[[0],idx].item()
+                if "no" in list_token:
+                    idx_no = list_token.index("no")
+                    proba_no = values[[0],idx_no].item()
+                    if proba_no>proba_No:
+                        idx = idx_no
+            else:
+                print("No yes or no token found")
+                return -1
+            proba_yes = values[[0],idx].item()
+            if flag_no: # if the token "no" is selected, we need to invert the probability
+                proba_yes = 1-proba_yes
+
+            proba_yes=values[[0],idx].item()
+        return proba_yes

@@ -147,7 +147,7 @@ def get_completion(client, prompt :str, cfg_generation :dict, system_prompt :str
     try :
         completion = client.chat.completions.create(
         messages=[
-            {"role": "system", "content": sys_message},#You are a coding assistant, skilled in writting code with creative flair."},
+            {"role": "system", "content": sys_message},
             {"role": "user", "content": prompt}
         ],**kwargs
         )

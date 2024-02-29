@@ -1,12 +1,12 @@
 from quality_metrics.common import (
     QualityMetric,
     Problem,
-    create_model_and_tokenizer,
 )
 from tqdm import tqdm
-from abc import ABC, abstractmethod
-
+from abc import abstractmethod
 from typing import Tuple 
+
+
 
 class Rank_puzzle(QualityMetric):
     def __init__(self,puzzle_dict,mode_rank="pairwise",prompt_instruction=None, n_generation=4):
@@ -22,7 +22,8 @@ class Rank_puzzle(QualityMetric):
         self.mode_rank = mode_rank
         self.puzzle_dict = puzzle_dict
         self.save_results = []
-        self.save_results_inverse = []
+        if mode_rank == "pairwise":
+            self.save_results_inverse = []
         self.speed_inference = None
         self.list_speed_inference = []
         self.n_generation = n_generation
@@ -136,3 +137,5 @@ class Rank_puzzle(QualityMetric):
             return self.absolute_ranking()
         else:
             raise ValueError(f"Invalid ranking mode: {self.mode_rank}")
+
+
