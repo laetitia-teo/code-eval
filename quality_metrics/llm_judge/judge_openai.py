@@ -15,7 +15,7 @@ import copy
 import torch 
 import numpy as np
 
-from utils_judge import return_proba_yes
+from quality_metrics.llm_judge.utils_judge import return_proba_yes
 
 # base openai class        
 class OpenAI_Rank(Rank_puzzle):

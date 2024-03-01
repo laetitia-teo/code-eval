@@ -7,7 +7,11 @@ import numpy as np
 from quality_metrics.llm_judge.judge_base import Rank_puzzle
 from quality_metrics.llm_judge.prompt_judge import OpenCodeInterpreter_1, OpenCodeInterpreter_2,yes_finetuning,yes_education
 from quality_metrics.llm_judge.utils_judge import return_proba_yes
-from quality_metrics.llm_judge.utils_hf import return_prompt_format
+from quality_metrics.llm_judge.utils_hf import (return_prompt_format,
+    extract_single_rating_autoj,
+    extract_pairwise_result_autoj,
+    build_autoj_input
+)
 from quality_metrics.common import (
     QualityMetric,
     Problem,
@@ -16,7 +20,8 @@ from quality_metrics.common import (
 # HF model
 
 class HF_Rank(Rank_puzzle):
-    def __init__(self, puzzle_dict,prompt_instruction,mode_rank="pairwise",exllama2=False,model_id=None,revision="main",n_generation=4,bs=2) -> None:
+    def __init__(self, puzzle_dict,prompt_instruction,mode_rank="pairwise",exllama2=False,model_id=None,
+                 revision="main",n_generation=4,bs=2,temperature=0.0001,top_p=1.,max_new_tokens=1024) -> None:
         """
         Args:
         - puzzle_dict: a dictionary of puzzles to rank
@@ -30,7 +35,10 @@ class HF_Rank(Rank_puzzle):
         - mode_rank: the mode to rank the puzzles, either "pairwise" or "absolute"
 
         """
-        self.exllama2 = exllama2
+        self.temperature = temperature
+        self.top_p = top_p
+        self.max_new_tokens=max_new_tokens
+        self.exllama2 = exllama2        
         self.model_id = model_id
         self.revision = revision
         super().__init__(puzzle_dict=puzzle_dict,prompt_instruction=prompt_instruction,mode_rank=mode_rank,n_generation=n_generation,bs=bs)
@@ -42,9 +50,14 @@ class HF_Rank(Rank_puzzle):
         if self.exllama2:
             gptq_config = GPTQConfig(bits=4, exllama_config={"version":2})
             self.model = AutoModelForCausalLM.from_pretrained(path_model,device_map="auto",quantization_config=gptq_config,revision = self.revision)
+            # from auto_gptq import exllama_set_max_input_length
+            # print("self.bs: ",self.bs)
+            # self.model = exllama_set_max_input_length(self.model, max_input_length=self.bs*1024)
+
         else:
             self.model = AutoModelForCausalLM.from_pretrained(path_model,device_map="auto",revision = self.revision)
         
+
     def prompt_format(self, text):
         """
         return the prompt format for the model system,user,...
@@ -56,8 +69,8 @@ class HF_Rank(Rank_puzzle):
         with torch.inference_mode():
             inputs = self.tokenizer(list_text, return_tensors="pt",padding=True).to("cuda")
             len_sequence = inputs.input_ids.shape[1]
-            out_tok = self.model.generate(**inputs, max_length=2048, do_sample=True, temperature = 1., top_p=0.9)
-            list_out = self.tokenizer.decode(out_tok[:,len_sequence:], skip_special_tokens=True) # only keep completion
+            out_tok = self.model.generate(**inputs, max_new_tokens=self.max_new_tokens, do_sample=True, temperature = self.temperature, top_p=self.top_p)
+            list_out = self.tokenizer.batch_decode(out_tok[:,len_sequence:], skip_special_tokens=True) # only keep completion
         return list_out
     
 
@@ -67,7 +80,7 @@ class Yes_model(HF_Rank):
         """
         yes_mode = ["finetuning","education"] #prompt to use for the ranking
         """
-        self.debug = False
+        self.debug = debug
         self.exllama2 = exllama2
         self.yes_mode = yes_mode # "finetuning" or "education"
         self.soft = torch.nn.Softmax(dim=-1)
@@ -119,32 +132,47 @@ class Yes_model(HF_Rank):
     
 # TODO: evaluate with GAIR/autoj-13b-GPTQ-4bits 
 
-# class Auto_j_Rank(HF_Rank):
-#     def __init__(self, puzzle_dict,mode_rank="pairwise",prompt_instruction=None,exllama2=True,model_id="GAIR/autoj-13b-GPTQ-4bits",n_generation=4) -> None:
-#         self.exllama2 = exllama2
-#         super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,n_generation=n_generation)
+class Auto_j_Rank(HF_Rank):
+    def __init__(self, puzzle_dict,mode_rank="pairwise",prompt_instruction=None,exllama2=True,model_id="GAIR/autoj-13b-GPTQ-4bits",n_generation=1,bs=2) -> None:
+        self.exllama2 = exllama2
+        assert "autoj" in model_id # only for autoj model (quantized or not)
+        super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,n_generation=n_generation,bs=bs,exllama2=exllama2)
+        self.exllama2 = exllama2
         
-        
-#     def pairwise_ranking(self,puzzle1: str,puzzle2: str) -> str:
-#         """return the winner (puzzle1 or puzzle2)"""
-#         query = self.prompt_instruction
-#         resp1 = puzzle1
-#         resp2 = puzzle2
-#         input_pairwise = build_autoj_input(prompt=query, 
-#                     resp1 = resp1,  resp2 = resp2, 
-#                     protocol = "pairwise_tie") # for pairwise response comparison 
-#         out = self.generate(input_pairwise)
-#         return extract_pairwise_result_autoj(out)
+    def pairwise_ranking(self, list_puzzle) -> list[int]:
+        """return the winner (puzzle1 or puzzle2)"""
+        query = self.prompt_instruction
+        list_prompt=[]
+        for i in range(len(list_puzzle)):
+            resp1 = list_puzzle[i][0]
+            resp2 = list_puzzle[i][1]
+            inputs_pairwise = build_autoj_input(prompt=query, 
+                        resp1 = resp1,  resp2 = resp2, 
+                        protocol = "pairwise_tie") # for pairwise response comparison 
+            list_prompt.append(inputs_pairwise)
+        out = self.generate(list_prompt)
+        results_pairwise=[]
+        for i in range(len(out)):
+            results_pairwise.append(extract_pairwise_result_autoj(out[i]))
+        return results_pairwise
     
-#     def absolute_grade(self,puzzle):
-#         """return the absolute_grade float between 0 and 10"""
-#         query = self.prompt_instruction
-#         resp1 = puzzle
-#         input_single = build_autoj_input(prompt=query, 
-#                     resp1 = resp1, resp2=None, 
-#                     protocol = "single") # for single response evaluation 
-#         out = self.generate(input_single)
-#         return extract_single_rating_autoj(out)
+    def absolute_grade(self,list_puzzle) -> list[int]:
+        """return the absolute_grade float between 0 and 10"""
+        query = self.prompt_instruction
+        list_prompt=[]
+        for i in range(len(list_puzzle)):
+            resp1 = list_puzzle[i]
+            inputs_single = build_autoj_input(prompt=query, 
+                        resp1 = resp1, resp2=None, 
+                        protocol = "single") # for single response evaluation 
+            list_prompt.append(inputs_single)
+        out = self.generate(list_prompt)
+
+        results_single=[]
+        for i in range(len(out)):
+            results_single.append(extract_single_rating_autoj(out[i]))
+
+        return results_single
 
 
 # # TODO: finish openchat ranking -> rename prometheus
