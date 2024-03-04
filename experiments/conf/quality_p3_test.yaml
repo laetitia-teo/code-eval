@@ -9,3 +9,5 @@ metric:
 dataset:
   name: p3
   path: /home/laetitia/work/code-eval/data/p3_puzzles.json
+
+save_every: 50

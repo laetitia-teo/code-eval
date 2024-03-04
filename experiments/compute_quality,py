@@ -29,20 +29,22 @@ def main(args):
         case _:
             raise NotImplementedError(f'{args.dataset.name} dataset not implemented')
 
-    # TODO change this
-    for p in tqdm(dataset):
-        if len(p.instruction) + len(p.completion) < 1500:
-            diff = metric.differences(p, return_list=True)
-            quality = diff
-            p.quality = quality
-
     path_name = pathlib.Path(args.metric.archive_path_or_list).stem
     save_path = args.dataset.path.replace(
         '.json', 
         f'_quality_{path_name}.json'
     )
-    save_dataset(dataset, save_path)
 
+    # TODO change this
+    for i, p in enumerate(tqdm(dataset)):
+        if len(p.instruction) + len(p.completion) < 1500:
+            diff = metric.differences(p, return_list=True)
+            quality = diff
+            p.quality = quality
+        if i + 1 % args.save_every:
+            save_dataset(dataset, save_path)
+
+    save_dataset(dataset, save_path)
 
 if __name__ == "__main__":
     main()
