@@ -168,3 +168,9 @@ class PredictionProgressCE(QualityMetric):
         return self.differences(problem).mean().item()
 
 
+class PredictionProgressCEDiff(PredictionProgressCE):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
+    def __call__(self, problem: Problem, return_list=True):
+        return super().differences(problem, return_list)

@@ -14,7 +14,7 @@ import numpy as np
 from openai import OpenAI
 from typing import Optional, List, Any, Dict
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from quality_metrics.utils.p3 import get_puzzle_sol
 
 
@@ -25,7 +25,7 @@ class Problem:
     idx: str
     instruction: str
     completion: str
-    quality: Optional[float] = None  # TODO add several quality options
+    quality: Optional[Dict[str, Any]] = field(default_factory=dict)
     description: Optional[str] = ''
     origin: Optional[str] = ''
 
