@@ -92,7 +92,7 @@ class Rank_puzzle(QualityMetric):
         ranked_keys = sorted(keys, key=lambda x: grades[x], reverse=True)
         return ranked_keys, grades
     
-
+    
     def round_robin_tournament(self,):
         list_key_puzzle_to_rank = []
         list_puzzles_to_rank = []
@@ -150,6 +150,80 @@ class Rank_puzzle(QualityMetric):
         ranked_puzzles = [(key, self.puzzle_dict[key]) for key in ranked_keys]
         return ranked_puzzles, win_record
     
+
+    def elo_ranking(self,factor_num_comparisons=5):
+        """
+        Compute the elo of the puzzles
+        number of comparison = factor_num_comparisons * n_puzzles
+        """
+        import random
+
+        num_comparisons= len(self.puzzle_dict)*factor_num_comparisons
+        
+        # function to update the elo rating
+        def update_elo_rating(rating_a, rating_b, outcome, k=32):
+            # Calculate expected outcome
+            expected_a = 1 / (1 + 10 ** ((rating_b - rating_a) / 400))
+            # Actual outcome
+            if outcome == "win":
+                score_a = 1
+            elif outcome == "lose":
+                score_a = 0
+            else:  # tie
+                score_a = 0.5
+            
+            # Update rating
+            new_rating_a = rating_a + k * (score_a - expected_a)
+            return new_rating_a
+        
+        list_key_puzzle_to_rank = []
+        list_puzzles_to_rank = []
+        # Initialize win records for each puzzle key
+        elo_rating = {key: 1500 for key in self.puzzle_dict}
+        # Get a list of keys to iterate over
+        keys = list(self.puzzle_dict.keys())
+        
+        # Iterate over each unique pair of puzzle keys
+        # total_iter = int(len(keys)*(len(keys)-1)/2*self.n_generation)
+        for _ in range(num_comparisons):
+            key1, key2 = random.sample(keys, 2)
+            puzzle1, puzzle2 = self.puzzle_dict[key1], self.puzzle_dict[key2]
+
+            # pairwise ranking is asymmetric, so we need to test it both ways (maybe later)
+            # (because of postion bias in the ranking)
+            list_puzzles_to_rank.append([puzzle1, puzzle2])
+            list_key_puzzle_to_rank.append([key1, key2])
+
+            # list_puzzles_to_rank.append([puzzle2, puzzle1])
+            # list_key_puzzle_to_rank.append([key2, key1])
+
+        for i in trange(0,len(list_key_puzzle_to_rank),self.bs):
+
+                    
+            # Perform the fake pairwise comparison
+            list_puzzles_to_rank_bs = list_puzzles_to_rank[i:i+self.bs]
+            list_key_puzzle_to_rank_bs = list_key_puzzle_to_rank[i:i+self.bs]
+            outcomes = self.pairwise_ranking(list_puzzles_to_rank_bs)
+            for idx_outcome in range(len(outcomes)):
+                outcome = outcomes[idx_outcome]
+                key_a, key_b = list_key_puzzle_to_rank_bs[idx_outcome]
+            # Update ratings based on the comparison outcome
+                if outcome != 2:  # In case of tie, no need to update both as no one wins
+                    if outcome == 1:
+                        elo_rating[key_a] = update_elo_rating(elo_rating[key_a], elo_rating[key_b], "win")
+                        elo_rating[key_b] = update_elo_rating(elo_rating[key_b], elo_rating[key_a], "lose")
+                    else:
+                        elo_rating[key_a] = update_elo_rating(elo_rating[key_a], elo_rating[key_b], "lose")
+                        elo_rating[key_b] = update_elo_rating(elo_rating[key_b], elo_rating[key_a], "win")
+
+            #TODO: we should adjust the selection logic to focus on puzzles with similar ratings
+                        
+        # Rank puzzles based on their win records, sorting by wins descending
+        ranked_keys = sorted(keys, key=lambda x: elo_rating[x], reverse=True)
+        ranked_puzzles = [(key, self.puzzle_dict[key]) for key in ranked_keys]
+        # return puzzles
+        return ranked_puzzles, elo_rating
+        
     def computing_ranking(self) -> Tuple[list,dict]:
         if self.mode_rank == "pairwise":
             return self.round_robin_tournament()

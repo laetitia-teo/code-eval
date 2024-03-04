@@ -166,7 +166,7 @@ class Yes_model(OpenAI_Rank):
         self.soft = torch.nn.Softmax(dim=1)
         super().__init__(**kwargs)
 
-        self.cfg['logprobs'] = True
+        self.cfg['logprobs'] = True #logprobs=True,top_logprobs=5
         self.cfg['top_logprobs'] = 5
 
 

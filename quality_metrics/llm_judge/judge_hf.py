@@ -17,11 +17,15 @@ from quality_metrics.common import (
     Problem,
     create_model_and_tokenizer,
 )
-# HF model
 
+
+# [Yes_model, Auto_j_Rank, JudgeLM
+
+# HF model
 class HF_Rank(Rank_puzzle):
     def __init__(self, puzzle_dict,prompt_instruction,mode_rank="pairwise",exllama2=False,model_id=None,
-                 revision="main",n_generation=4,bs=2,temperature=0.0001,top_p=1.,max_new_tokens=1024) -> None:
+                 revision="main",n_generation=4,bs=2,temperature=0.0001,top_p=1.,max_new_tokens=1024,load_in_4bit=False,load_in_8bit=False
+) -> None:
         """
         Args:
         - puzzle_dict: a dictionary of puzzles to rank
@@ -35,6 +39,8 @@ class HF_Rank(Rank_puzzle):
         - mode_rank: the mode to rank the puzzles, either "pairwise" or "absolute"
 
         """
+        self.load_in_4bit = load_in_4bit
+        self.load_in_8bit = load_in_8bit
         self.temperature = temperature
         self.top_p = top_p
         self.max_new_tokens=max_new_tokens
@@ -47,6 +53,8 @@ class HF_Rank(Rank_puzzle):
         from transformers import AutoModelForCausalLM, AutoTokenizer, GPTQConfig
         path_model=self.model_id
         self.tokenizer = AutoTokenizer.from_pretrained(path_model,revision = self.revision)
+        self.tokenizer.padding_side="left"
+
         if self.exllama2:
             gptq_config = GPTQConfig(bits=4, exllama_config={"version":2})
             self.model = AutoModelForCausalLM.from_pretrained(path_model,device_map="auto",quantization_config=gptq_config,revision = self.revision)
@@ -55,7 +63,22 @@ class HF_Rank(Rank_puzzle):
             # self.model = exllama_set_max_input_length(self.model, max_input_length=self.bs*1024)
 
         else:
-            self.model = AutoModelForCausalLM.from_pretrained(path_model,device_map="auto",revision = self.revision)
+            kwargs = {}
+            if self.load_in_4bit or self.load_in_8bit:
+                from transformers import BitsAndBytesConfig
+                if self.load_in_4bit:
+                    bnb_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_use_double_quant=False,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.bfloat16
+                    )
+                    kwargs["quantization_config"]=bnb_config
+                if self.load_in_8bit:
+
+                    kwargs["load_in_8bit"]=True
+
+            self.model = AutoModelForCausalLM.from_pretrained(path_model,device_map="auto",revision = self.revision,**kwargs)
         
 
     def prompt_format(self, text):
@@ -173,6 +196,107 @@ class Auto_j_Rank(HF_Rank):
             results_single.append(extract_single_rating_autoj(out[i]))
 
         return results_single
+
+# JudgeLM: Fine-tuned Large Language Models are Scalable Judges
+# paper: https://arxiv.org/abs/2310.17631
+# code: https://github.com/baaivision/JudgeLM
+# WIP 
+    
+from quality_metrics.llm_judge.utils_hf import (
+    KeywordStoppingCriteria,conv_judge_pair,
+    conv_judge_pair_w_reference,
+    parse_score_JudgeLM,
+    translate_score_to_win_list_JudgeLM,
+    return_judgeLM_prompt
+)
+from quality_metrics.llm_judge.prompt_judge import example_puzzle
+
+class JudgeLM(HF_Rank):
+    def __init__(self, puzzle_dict,prompt_instruction,example_puzzle=example_puzzle,fast_eval=True,mode_rank="pairwise",exllama2=False,model_id="/home/flowers/work/hf/JudgeLM-7B-v1.0",n_generation=1,bs=2,load_in_4bit=False,load_in_8bit=False) -> None:
+        """
+        example_puzzle: puzzle use for absolute grading grading 
+        """
+        self.example_puzzle=example_puzzle
+        self.exllama2 = exllama2
+        self.explanation = []
+        if not "JudgeLM" in model_id:
+            print("Warning: LLM model used should be a part of 'JudgeLM' model")
+        super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,n_generation=n_generation,bs=bs,exllama2=exllama2,load_in_4bit=load_in_4bit,load_in_8bit=load_in_8bit)
+        self.exllama2 = exllama2
+        self.fast_eval = fast_eval # if True, just give score without explanation, if False, give explanation
+
+    def generate(self,list_prompt: list[str],eos_string="\n"):
+        assert isinstance(list_prompt,list)
+        with torch.inference_mode():
+            do_sample = False if self.temperature < 1e-4 else True
+            inputs = self.tokenizer(list_prompt,return_tensors="pt",padding=True)
+            len_prompt = inputs.input_ids.shape[1]
+            inputs=inputs.to("cuda")
+            stopping_criteria = KeywordStoppingCriteria(eos_string, self.tokenizer, len_prompt)
+            output_ids = self.model.generate(
+                        **inputs,
+                        do_sample=do_sample,
+                        temperature=self.temperature,
+                        max_new_tokens=self.max_new_tokens,
+                        
+                        stopping_criteria=[stopping_criteria]
+                    )
+            outputs =self.tokenizer.batch_decode(output_ids[:, len_prompt:], skip_special_tokens=True)
+            if eos_string:
+                if not self.fast_eval:
+                    for i in range(len(list_prompt)):
+
+                        self.explanation.append({"prompt":list_prompt[i],"output":outputs[i],"full" : list_prompt[i]+"\n"+outputs[i]})
+                    outputs = [out[: out.find(eos_string)].strip() for out in outputs]
+        return outputs
+
+    def pairwise_ranking(self, list_puzzle) -> list[int]:
+        """return the winner (puzzle1 or puzzle2)"""
+        references = None
+        conv = conv_judge_pair.copy(None) if references is None else conv_judge_pair_w_reference.copy(None)
+        if self.fast_eval:
+            conv.sep = "\n"
+        query = self.prompt_instruction
+        if query == None:
+            query = "Grade the quality of those two answer."
+        questions= [{"question_body": query, "answer1_body": list_puzzle[i], "answer2_body": list_puzzle[i][1]} for i in range(len(list_puzzle))]
+        list_prompt=[]
+        for question in questions:
+            data_sample = return_judgeLM_prompt(conv,question)
+            list_prompt.append(data_sample)
+
+        out = self.generate(list_prompt,eos_string=conv.sep)
+        results_pairwise_score=[]
+        for i in range(len(out)):
+            results_pairwise_score.append(parse_score_JudgeLM(out[i])) # for absolute ranking just get that with a ref puzzles.
+        results_pairwise = translate_score_to_win_list_JudgeLM(results_pairwise_score)
+        return results_pairwise
+    
+    def absolute_grade(self,list_puzzle) -> list[int]:
+
+    # return [str(8**88)[i:i+8] for i in range(0,80,8)]
+
+        """return the absolute_grade float between 0 and 10"""
+        query = self.prompt_instruction
+        references = None
+        conv = conv_judge_pair.copy(None) if references is None else conv_judge_pair_w_reference.copy(None)
+        if self.fast_eval:
+            conv.sep = "\n"
+        query = self.prompt_instruction
+        if query == None:
+            query = "Grade the quality of those two answer."
+        questions= [{"question_body": query, "answer1_body": list_puzzle[i], "answer2_body": self.example_puzzle} for i in range(len(list_puzzle))]
+        list_prompt=[]
+        for question in questions:
+            data_sample = return_judgeLM_prompt(conv,question)
+            list_prompt.append(data_sample)
+
+        out = self.generate(list_prompt,eos_string=conv.sep)
+        results_absolute_score=[]
+        for i in range(len(out)):
+            results_absolute_score.append(parse_score_JudgeLM(out[i])[0]) # for absolute ranking just get that with a ref puzzles.
+        return results_absolute_score
+
 
 
 # # TODO: finish openchat ranking -> rename prometheus
