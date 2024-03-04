@@ -23,3 +23,6 @@ def return_proba_yes(values,list_words):
 
     proba_yes=values[idx] 
     return proba_yes
+
+
+
