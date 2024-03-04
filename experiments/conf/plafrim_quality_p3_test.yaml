@@ -8,6 +8,6 @@ metric:
 
 dataset:
   name: p3
-  path: /projets/flowers2/laetitia/code-eval/data/p3_puzzles.json
+  path: /projets/flowers2/laetitia/code-eval/data/dataset.json
 
 save_every: 50
