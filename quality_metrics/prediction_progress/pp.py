@@ -1,4 +1,5 @@
 import re
+import json
 import torch
 
 from typing import Union, Dict, List, Optional
@@ -11,6 +12,7 @@ from quality_metrics.common import (
 
 from quality_metrics.prompts.prompts import pp_prompt_user_1ex, pp_prompt_assistant
 from quality_metrics.prediction_progress import losses
+from quality_metrics.common import dataset_from_p3
 
 
 class PredictionProgressCE(QualityMetric):
@@ -18,11 +20,14 @@ class PredictionProgressCE(QualityMetric):
             self,
             model_id_or_path: str,
             archive_path_or_list: Union[str, List[Problem]],
-            reference_problem: Problem,
+            reference_problem: Optional[Problem] = None,
             prompt: Optional[str] = None,
             solution_mask: bool = False,
             batch_size: int = 1,
-            solution_exclude_pattern: Optional[str] = 'def g\(.*\).*:'
+            solution_exclude_pattern: Optional[str] = 'def g\(.*\).*:',
+            use_doc: bool = False,  # TODO update this
+            max_len: Optional[int] = None,  # if not set, use the model's max position embeddings
+            **kwargs,
         ):
         """
         In-context Prediction Progress using CrossEntropy.
@@ -35,14 +40,25 @@ class PredictionProgressCE(QualityMetric):
         self.tokenizer = tokenizer
         self.batch_size = batch_size
         self.solution_exclude_pattern = solution_exclude_pattern
+
+        if max_len is None:
+            self.max_len = self.model.config.max_position_embeddings
+        else:
+            self.max_len = max_len
     
         # load archive
         if isinstance(archive_path_or_list, str):
-            self.problem_archive = Problem.load_dataset(archive_path_or_list)
+            dataset = json.load(open(archive_path_or_list, 'r'))
+            self.problem_archive = dataset_from_p3(dataset)
         else:
             self.problem_archive = archive_path_or_list
 
-        self.reference_problem = reference_problem
+        if reference_problem is not None:
+            self.reference_problem = reference_problem
+        else:
+            from quality_metrics.utils.p3 import REF_PUZZLE_NODOC, REF_SOL
+            self.reference_problem = Problem(idx='reference', instruction=REF_PUZZLE_NODOC, 
+                                             completion=REF_SOL)
         self.user_prompt = pp_prompt_user_1ex
         self.assistant_prompt = pp_prompt_assistant
 
@@ -56,22 +72,28 @@ class PredictionProgressCE(QualityMetric):
 
         # TODO find a way to mask some tokens of the solution, maybe with a pattern
         self.solution_mask = solution_mask
+        print('Filtering problem archive')
         self._filter_archive_problems()
+        print('done')
+        print('Computing original losses')
         self.original_losses = self._get_original_losses()
+        print('done')
     
     def _get_original_losses(self):
         return self._get_losses(self.reference_problem)
 
     def _filter_archive_problems(self):
-        # TODO use the model's context size and the prompt to compute which problems 
-        #  are too long
-        pass
+        prompts = self._get_prompts(self.reference_problem)
+        new_archive_ids = []
+        for idx, prompt in enumerate(prompts):
+            if len(self.tokenizer(prompt).input_ids) < self.max_len:
+                new_archive_ids.append(idx)
+        self.problem_archive = [self.problem_archive[i] for i in new_archive_ids]
 
     def _is_problem_too_long(self, problem: Problem):
         return False
 
-    def _get_losses(self, problem: Problem):
-        # format prompts with archive and ref puzzles
+    def _get_prompts(self, problem: Problem):
         completed_user_prompts = [
             self.user_prompt.format(
                 puzzle=problem.instruction,
@@ -98,6 +120,11 @@ class PredictionProgressCE(QualityMetric):
             prompts.append(self.tokenizer.apply_chat_template(
                 messages, add_generation_prompt=False, tokenize=False
             ))
+        return prompts
+
+    def _get_losses(self, problem: Problem):
+        # format prompts with archive and ref puzzles
+        prompts = self._get_prompts(problem)
         archive_tokenized_puzzles = self.tokenizer(prompts, return_tensors='pt',
                                                    padding=True)
 
@@ -130,9 +157,12 @@ class PredictionProgressCE(QualityMetric):
         return losses.get_solution_losses(archive_tokenized_puzzles, self.model,
                                           batch_size=self.batch_size)
 
-    def differences(self, problem: Problem):
+    def differences(self, problem: Problem, return_list=False):
         final_losses = self._get_losses(problem)
-        return (self.original_losses - final_losses)
+        diff = (self.original_losses - final_losses)
+        if return_list:
+            diff = diff.tolist()
+        return diff
 
     def __call__(self, problem: Problem):
         return self.differences(problem).mean().item()

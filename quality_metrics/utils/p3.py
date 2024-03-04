@@ -56,3 +56,14 @@ def get_puzzle_sol(puzzle):
         return parse_puzzle_from_str(puzzle['program_str'])
     else:  # train set
         return make_puzzle(puzzle), make_solution(puzzle)
+    
+
+REF_PUZZLE = '''def sat(s: List[str]):
+    """Find a list of 1000 distinct strings which each have more 'a's than 'b's and at least one 'b'."""
+    return len(set(s)) == 1000 and all((x.count("a") > x.count("b")) and ('b' in x) for x in s)'''
+
+REF_PUZZLE_NODOC = '''def sat(s: List[str]):
+    return len(set(s)) == 1000 and all((x.count("a") > x.count("b")) and ('b' in x) for x in s)'''
+
+REF_SOL = '''def sol():
+    return ["a" * (i + 2) + "b" for i in range(1000)]'''

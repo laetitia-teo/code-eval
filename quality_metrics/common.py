@@ -1,10 +1,16 @@
+import os
+import pathlib
+
 import torch
+import json
 from transformers import (
     CodeLlamaTokenizer,
     LlamaTokenizer,
     AutoTokenizer,
     AutoModelForCausalLM,
 )
+
+import numpy as np
 from openai import OpenAI
 from typing import Optional, List, Any, Dict
 from abc import ABC, abstractmethod
@@ -19,7 +25,7 @@ class Problem:
     idx: str
     instruction: str
     completion: str
-    quality: Optional[float] = 0.
+    quality: Optional[float] = None  # TODO add several quality options
     description: Optional[str] = ''
     origin: Optional[str] = ''
 
@@ -46,7 +52,7 @@ class Problem:
         if 'name' in dic:
             idx = dic['name']
         else:
-            raise RuntimeError("No name found in puzzle")  # find a fallback when this happens
+            idx = f'random_{np.random.choice(1000000)}'
 
         p = Problem(
             idx=idx,
@@ -57,16 +63,55 @@ class Problem:
     
     def get_token_counts(self, tokenizer):
         return len(tokenizer(self.instruction).input_ids) + len(tokenizer(self.completion).input_ids)
+    
     def get_problem(self):
-        return "```python+\n"+self.instruction + "\n" + self.completion + "\n```"
         """return the problem as a string"""
+        return "```python+\n"+self.instruction + "\n" + self.completion + "\n```"
 
 
-def dataset_from_p3(dataset):
+def dataset_from_p3(dataset: Dict[str, Any]) -> List[Problem]:
     problem_dataset = []
+    pb_idx = 0
     for p in dataset:
-        problem_dataset.append(Problem.from_p3(p))
+        if 'sol_bodies' in p and not p['sol_bodies']:  # p3 probem without solutions
+            continue
+        if 'name' in p:
+            problem_dataset.append(Problem.from_p3(p))
+        else:
+            given_name = f'unnamed_puzzle_{pb_idx}'
+            p['name'] = given_name
+            problem_dataset.append(Problem.from_p3(p))
+            pb_idx += 1
+
     return problem_dataset
+
+
+def save_dataset(dataset: List[Problem], path: str):
+    json_dataset = []
+    for p in dataset:
+        el = {}
+        el['instruction'] = p.instruction
+        el['completion'] = p.completion
+        el['idx'] = p.idx
+        el['quality'] = p.quality
+        el['description'] = p.description
+        el['origin'] = p.origin
+        json_dataset.append(el)
+
+    if not os.path.exists(str(pathlib.Path(path).parent)):
+        os.makedirs(str(pathlib.Path(path).parent))
+
+    with open(path, 'w') as f:
+        json.dump(json_dataset, f)
+
+
+def load_dataset(path: str):
+    dataset = []
+    with open(path, 'r') as f:
+        json_dataset = json.load(f)
+    for p in json_dataset:
+        dataset.append(Problem(**p))
+    return dataset
 
 
 ### quality
@@ -129,7 +174,7 @@ def create_model_and_tokenizer(model_id, compile=True, dtype=torch.bfloat16, fla
     return model, tokenizer
 
 
-#OpenAI inference
+# OpenAI inference
 
 from concurrent.futures import ThreadPoolExecutor
 def get_completion(client, prompt :str, cfg_generation :dict, system_prompt :str = None, temperature=None)->str:
