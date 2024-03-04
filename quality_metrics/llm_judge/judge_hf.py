@@ -35,6 +35,8 @@ class HF_Rank(Rank_puzzle):
         - mode_rank: the mode to rank the puzzles, either "pairwise" or "absolute"
 
         """
+        self.load_in_4bit = load_in_4bit
+        self.load_in_8bit = load_in_8bit
         self.temperature = temperature
         self.top_p = top_p
         self.max_new_tokens=max_new_tokens
@@ -47,6 +49,8 @@ class HF_Rank(Rank_puzzle):
         from transformers import AutoModelForCausalLM, AutoTokenizer, GPTQConfig
         path_model=self.model_id
         self.tokenizer = AutoTokenizer.from_pretrained(path_model,revision = self.revision)
+        self.tokenizer.padding_side="left"
+
         if self.exllama2:
             gptq_config = GPTQConfig(bits=4, exllama_config={"version":2})
             self.model = AutoModelForCausalLM.from_pretrained(path_model,device_map="auto",quantization_config=gptq_config,revision = self.revision)
@@ -55,7 +59,22 @@ class HF_Rank(Rank_puzzle):
             # self.model = exllama_set_max_input_length(self.model, max_input_length=self.bs*1024)
 
         else:
-            self.model = AutoModelForCausalLM.from_pretrained(path_model,device_map="auto",revision = self.revision)
+            kwargs = {}
+            if self.load_in_4bit or self.load_in_8bit:
+                from transformers import BitsAndBytesConfig
+                if self.load_in_4bit:
+                    bnb_config = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_use_double_quant=False,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_compute_dtype=torch.bfloat16
+                    )
+                    kwargs["quantization_config"]=bnb_config
+                if self.load_in_8bit:
+
+                    kwargs["load_in_8bit"]=True
+
+            self.model = AutoModelForCausalLM.from_pretrained(path_model,device_map="auto",revision = self.revision,**kwargs)
         
 
     def prompt_format(self, text):
