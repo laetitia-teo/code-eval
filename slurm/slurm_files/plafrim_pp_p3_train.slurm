@@ -14,4 +14,4 @@ cd /projets/flowers2/laetitia/code-eval
 conda deactivate
 conda activate aces
 
-srun python experiments/compute_quality.py --config-name quality_p3_train
+srun python experiments/compute_quality.py --config-name plafrim_quality_p3_train
