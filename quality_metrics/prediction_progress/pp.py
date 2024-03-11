@@ -169,8 +169,56 @@ class PredictionProgressCE(QualityMetric):
 
 
 class PredictionProgressCEDiff(PredictionProgressCE):
+    """
+    Version where we get the differences in losses instead of the average over reference puzzles.
+    """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
     
     def __call__(self, problem: Problem, return_list=True):
         return super().differences(problem, return_list)
+
+
+class NormalizedPredictionProgressCE(PredictionProgressCE):
+    """
+    Normalize the PP by the original loss of the solution (to get a percentage of improvement).
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.eps = 1e-8
+    
+    def differences(self, problem: Problem, return_list=False):
+        final_losses = self._get_losses(problem)
+        diff = (self.original_losses - final_losses)
+        diff = diff / (final_losses + 1e-8)
+        if return_list:
+            diff = diff.tolist()
+        return diff
+    
+
+class NormalizedPredictionProgressCEDiff(NormalizedPredictionProgressCE):
+    """
+    Normalized x Diff: get normalized PP differences.
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
+    def __call__(self, problem: Problem, return_list=True):
+        return super().differences(problem, return_list)
+
+
+if __name__ == '__main__':
+    # some tests
+    ds = dataset_from_p3(json.load(open('data/puzzles_test_1.json')))
+    # load config
+    from omegaconf import OmegaConf
+    conf = OmegaConf.load('experiments/conf/quality_p3_train.yaml')
+    metric = PredictionProgressCE(**conf.metric)
+    print(metric(ds[0]))
+    metric = NormalizedPredictionProgressCE(**conf.metric)
+    print(metric(ds[0]))
+    metric = PredictionProgressCEDiff(**conf.metric)
+    print(metric(ds[0]))
+    metric = NormalizedPredictionProgressCEDiff(**conf.metric)
+    print(metric(ds[0]))
+    print('passed')
