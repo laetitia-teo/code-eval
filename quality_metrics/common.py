@@ -27,7 +27,7 @@ class Problem:
     completion: str
     quality: Optional[Dict[str, Any]] = field(default_factory=dict)
     description: Optional[str] = ''
-    origin: Optional[str] = ''
+    origin: Optional[str] = 'unknown'
 
     @classmethod
     def from_dict(self, dic):
@@ -46,18 +46,32 @@ class Problem:
         return p
     
     @classmethod
-    def from_p3(self, dic):
+    def from_p3(self, dic, origin=None):
         # handle both the program_str case and the original p3 format
         puzzle, solution = get_puzzle_sol(dic)
         if 'name' in dic:
             idx = dic['name']
         else:
             idx = f'random_{np.random.choice(1000000)}'
+        
+        if origin is not None:
+            p_origin = origin
+        elif 'origin' in dic:
+            p_origin = dic['origin']
+        else:
+            p_origin = 'unknown'
+        
+        if 'description' in dic:
+            p_description = dic['description']
+        else:
+            p_description = ''
 
         p = Problem(
             idx=idx,
             instruction=puzzle,
-            completion=solution
+            completion=solution,
+            description=p_description,
+            origin=p_origin,
         )
         return p
     
@@ -212,7 +226,7 @@ def chunks(lst, n):
         yield lst[i : i + n]
 
 
-def get_multiple_completions(client, batch_prompt: list[str], cfg_generation: dict,max_workers=10,temperature=None)->list[str]:
+def get_multiple_completions(client, batch_prompt: list[str], cfg_generation: dict, max_workers=10, temperature=None) -> list[str]:
     """
     Get batch completions from OpenAI API
     #TODO:  need to integrate batch tools in the loop 
@@ -223,15 +237,24 @@ def get_multiple_completions(client, batch_prompt: list[str], cfg_generation: di
     completions = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         for sub_batch in chunks(batch_prompt, max_workers):
-            for _,message_list in enumerate(sub_batch):
-                kwargs = {"client":client, "prompt":message_list}
-                kwargs["cfg_generation"]=cfg_generation
+            for _, message_list in enumerate(sub_batch):
+                kwargs = {"client": client, "prompt": message_list}
+                kwargs["cfg_generation"] = cfg_generation
                 if temperature is not None:
-                    kwargs["temperature"]= temperature
+                    kwargs["temperature"] = temperature
                 future = executor.submit(
-                    get_completion,**kwargs
+                    get_completion, **kwargs
                 )
                 completions.append(future)
     # Retrieve the results from the futures
     results = [future.result() for future in completions]
     return results
+
+
+if __name__ == '__main__':
+    # try to load dataset
+    data_path = 'data/dataset.json'
+    ds = json.load(open(data_path, 'r'))
+    pb_ds = dataset_from_p3(ds)
+    save_dataset(pb_ds, 'data/saved.json')
+    print('done')
