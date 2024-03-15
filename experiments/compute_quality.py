@@ -7,6 +7,8 @@ from quality_metrics.common import dataset_from_p3, save_dataset, load_dataset
 from quality_metrics.prediction_progress.pp import (
     PredictionProgressCE,
     PredictionProgressCEDiff,
+    NormalizedPredictionProgressCE,
+    NormalizedPredictionProgressCEDiff,
 )
 
 
@@ -23,6 +25,14 @@ def main(args):
             )
         case 'pp_diff':
             metric = PredictionProgressCEDiff(
+                **args.metric
+            )
+        case 'norm_pp':
+            metric = NormalizedPredictionProgressCE(
+                **args.metric
+            )
+        case 'norm_pp_diff':
+            metric = NormalizedPredictionProgressCEDiff(
                 **args.metric
             )
         case _:

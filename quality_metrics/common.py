@@ -83,7 +83,7 @@ class Problem:
         return "```python+\n"+self.instruction + "\n" + self.completion + "\n```"
 
 
-def dataset_from_p3(dataset: Dict[str, Any]) -> List[Problem]:
+def dataset_from_p3(dataset: List) -> List[Problem]:
     problem_dataset = []
     pb_idx = 0
     for p in dataset:
