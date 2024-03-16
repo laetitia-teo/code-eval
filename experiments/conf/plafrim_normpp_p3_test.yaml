@@ -1,0 +1,13 @@
+metric:
+  name: norm_pp_diff
+  model_id_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
+  archive_path_or_list: /projets/flowers2/laetitia/code-eval/data/puzzles_test_1.json
+  solution_mask: true
+  batch_size: 2
+  max_len: 1024
+
+dataset:
+  name: p3
+  path: /projets/flowers2/laetitia/code-eval/data/dataset.json
+
+save_every: 50
