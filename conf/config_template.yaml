@@ -11,15 +11,15 @@ sol: true
 
 # training
 train_path: {train_path}
-batch_size: 8
-accum_step: 1
+batch_size: 4
+accum_step: 2
 num_epochs: 2
 
 # testing
 test_path: {test_path}
 compile: false
 k: 5
-eval_batch_size: 16
+eval_batch_size: 8
 
 slurm:
   cluster: jz

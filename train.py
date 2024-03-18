@@ -56,11 +56,12 @@ def train(config, run_id):
     #     dataset = json.load(f)
 
     def process_fn(el):
-        try:
-            el['quality'] = np.mean(el['quality'][config.quality_key])
-        except Exception as e:
-            print(el)
-            raise e
+        if config.quality_key is not None:  # in this case we raise an error if we don't have the quality
+            try:
+                el['quality'] = np.mean(el['quality'][config.quality_key])
+            except Exception as e:
+                print(el)
+                raise e
         keys_to_rm = []
         for key, val in el.items():
             if isinstance(val, list):
@@ -72,26 +73,13 @@ def train(config, run_id):
         return el
 
     processed_ds = []
-    for el in dataset:
-        if 'quality' in el:
-            if config.quality_key in el['quality']:
-                processed_ds.append(process_fn(el))
-    # try:
-    # except KeyError:
-    #     pass
-    # to_keep = [
-    #     "emb",
-    #     "target_skills",
-    #     "puzzle_history",
-    #     "quality",
-    #     "description",
-    #     "is_valid",
-    #     "is_valid_explanation"
-    # ]
-    # for i in dataset:
-    #     for j in to_remove:
-    #         if j in i:
-    #             del i[j]
+    if config.quality_key is not None:
+        for el in dataset:
+            if 'quality' in el:
+                if config.quality_key in el['quality']:
+                    processed_ds.append(process_fn(el))
+    else:
+        processed_ds = [process_fn(el) for el in dataset]
 
     dataset = Dataset.from_list(processed_ds)
     dataset = dataset.shuffle(seed=config.seed)
@@ -148,7 +136,7 @@ def train(config, run_id):
     else:
         response_template = "Problem 1:"
 
-    collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer,mlm=False)
+    collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer, mlm=False)
 
     learning_rate=1e-5
 

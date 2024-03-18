@@ -39,7 +39,7 @@ print(f'seed = {seed}')
 
 # split dataset and save
 entire_dataset = load_dataset(args.data_path)
-entire_dataset = [p for p in entire_dataset if args.quality_key in p.quality]
+# entire_dataset = [p for p in entire_dataset if args.quality_key in p.quality]
 
 indices_first = np.random.choice(len(entire_dataset), len(entire_dataset) // 2, replace=False)
 indices_second = [i for i in range(len(entire_dataset)) if i not in indices_first]
@@ -61,10 +61,12 @@ with open('conf/config_template.yaml', 'r') as f:
 config_first = config_template.format(
     test_path=test_dataset_path,
     train_path=first_dataset_path,
+    quality_key='null',
 )
 config_second = config_template.format(
     test_path=test_dataset_path,
     train_path=second_dataset_path,
+    quality_key='null',
 )
 conf_name_first = f'conf_first_{dataset_name}_{seed}'
 conf_name_second = f'conf_second_{dataset_name}_{seed}'

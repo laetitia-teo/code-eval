@@ -16,3 +16,8 @@ python experiments/dataset_quality_split.py
 
 Use the `-q` flag to change the key of the quality metric we use to split (we assume higher is better). 
 
+### Train a model
+
+```bash
+python run.py --config-name conf_second_p3_pb_dataset_1654869586
+```
