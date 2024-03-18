@@ -15,7 +15,7 @@ import numpy as np
 
 
 parser = ArgumentParser()
-parser.add_argument('-d', '--data-path', default='data/dataset.json')
+parser.add_argument('-d', '--data-path', default='data/p3_pb_dataset.json')
 parser.add_argument('-s', '--seed', type=int, default=None)
 parser.add_argument('--gpu', '-g', default='a100')  # for the expe
 parser.add_argument('--quality-key', '-q', default='pp_diff', help='Adjust this to match the'
