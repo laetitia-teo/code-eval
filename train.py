@@ -48,23 +48,52 @@ def train(config, run_id):
 
     print(os.getcwd())
     # hf way to load json dataset
+    # data_path  = 
     with open(config.train_path, encoding="utf-8") as f:
         dataset = json.load(f)
-    to_remove = [
-        "emb",
-        "target_skills",
-        "puzzle_history",
-        "quality",
-        "description",
-        "is_valid",
-        "is_valid_explanation"
-    ]
-    for i in dataset:
-        for j in to_remove:
-            if j in i:
-                del i[j]
 
-    dataset = Dataset.from_list(dataset)
+    # with open('data/dataset.json', 'r') as f:
+    #     dataset = json.load(f)
+
+    def process_fn(el):
+        try:
+            el['quality'] = np.mean(el['quality'][config.quality_key])
+        except Exception as e:
+            print(el)
+            raise e
+        keys_to_rm = []
+        for key, val in el.items():
+            if isinstance(val, list):
+                keys_to_rm.append(key)
+        for key in keys_to_rm:
+            del el[key]
+
+        el['program_str'] = "```python\n"+el['instruction'] + "\n\n" + el['completion'] + "\n```"
+        return el
+
+    processed_ds = []
+    for el in dataset:
+        if 'quality' in el:
+            if config.quality_key in el['quality']:
+                processed_ds.append(process_fn(el))
+    # try:
+    # except KeyError:
+    #     pass
+    # to_keep = [
+    #     "emb",
+    #     "target_skills",
+    #     "puzzle_history",
+    #     "quality",
+    #     "description",
+    #     "is_valid",
+    #     "is_valid_explanation"
+    # ]
+    # for i in dataset:
+    #     for j in to_remove:
+    #         if j in i:
+    #             del i[j]
+
+    dataset = Dataset.from_list(processed_ds)
     dataset = dataset.shuffle(seed=config.seed)
 
     # TODO maybe move this in eval
