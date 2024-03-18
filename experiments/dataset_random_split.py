@@ -37,12 +37,10 @@ print(f'current directory: {os.getcwd()}')
 
 print(f'seed = {seed}')
 
+# split dataset and save
 entire_dataset = load_dataset(args.data_path)
 entire_dataset = [p for p in entire_dataset if args.quality_key in p.quality]
 
-# split dataset and save
-with open(args.data_path, 'r') as f:
-    entire_dataset = json.load(f)
 indices_first = np.random.choice(len(entire_dataset), len(entire_dataset) // 2, replace=False)
 indices_second = [i for i in range(len(entire_dataset)) if i not in indices_first]
 
