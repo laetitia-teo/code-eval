@@ -2,6 +2,7 @@ run_id: null
 
 train: true
 eval: True
+quality_key: {quality_key}
 
 # general
 model_id: deepseek-ai/deepseek-coder-1.3b-instruct

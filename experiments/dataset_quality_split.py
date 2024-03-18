@@ -77,10 +77,12 @@ with open('conf/config_template.yaml', 'r') as f:
 config_low_quality = config_template.format(
     test_path=args.test_dataset_path,
     train_path=low_quality_dataset_path,
+    quality_key=args.quality_key,
 )
 config_high_quality = config_template.format(
     test_path=args.test_dataset_path,
     train_path=high_quality_dataset_path,
+    quality_key=args.quality_key,
 )
 conf_name_low_quality = f'conf_low_quality_{dataset_name}_{args.quality_key}'
 conf_name_high_quality = f'conf_high_quality_{dataset_name}_{args.quality_key}'
