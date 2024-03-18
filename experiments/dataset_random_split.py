@@ -20,6 +20,8 @@ parser.add_argument('-s', '--seed', type=int, default=None)
 parser.add_argument('--gpu', '-g', default='a100')  # for the expe
 parser.add_argument('--quality-key', '-q', default='pp_diff', help='Adjust this to match the'
                     ' field of the quality score, in case there are several')
+parser.add_argument('--run', '-r', action='store_true', default=False, help='Whether to run the'
+                    ' experiemnt after creating the datasets')
 
 test_dataset_path = 'data/P3_test_emb_wizard3B.json'
 
@@ -75,13 +77,14 @@ with open(f'conf/{conf_name_second}.yaml', 'w') as f:
     f.write(config_second)
     
 # run experiment
-run_id_first = f'split_expe_first_{seed}'
-run_id_second = f'split_expe_second_{seed}'
-command_first = (f'python cluster_run.py -g {args.gpu} --config {conf_name_first} '
-                 f'--run-id {run_id_first}')
-command_second = (f'python cluster_run.py -g {args.gpu} --config {conf_name_second} '
-                  f'--run-id {run_id_second}')
+if args.run:
+    run_id_first = f'split_expe_first_{seed}'
+    run_id_second = f'split_expe_second_{seed}'
+    command_first = (f'python cluster_run.py -g {args.gpu} --config {conf_name_first} '
+                    f'--run-id {run_id_first}')
+    command_second = (f'python cluster_run.py -g {args.gpu} --config {conf_name_second} '
+                    f'--run-id {run_id_second}')
 
-subprocess.call(command_first, shell=True)
-subprocess.call(command_second, shell=True)
+    subprocess.call(command_first, shell=True)
+    subprocess.call(command_second, shell=True)
 
