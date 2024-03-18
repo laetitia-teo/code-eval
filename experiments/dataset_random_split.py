@@ -9,6 +9,8 @@ import pathlib
 import subprocess
 from argparse import ArgumentParser
 
+from quality_metrics.common import load_dataset, save_dataset
+
 import numpy as np
 
 
@@ -16,6 +18,8 @@ parser = ArgumentParser()
 parser.add_argument('-d', '--data-path', default='data/dataset.json')
 parser.add_argument('-s', '--seed', type=int, default=None)
 parser.add_argument('--gpu', '-g', default='a100')  # for the expe
+parser.add_argument('--quality-key', '-q', default='pp_diff', help='Adjust this to match the'
+                    ' field of the quality score, in case there are several')
 
 test_dataset_path = 'data/P3_test_emb_wizard3B.json'
 
@@ -31,6 +35,9 @@ print(f'current directory: {os.getcwd()}')
 
 print(f'seed = {seed}')
 
+entire_dataset = load_dataset(args.data_path)
+entire_dataset = [p for p in entire_dataset if args.quality_key in p.quality]
+
 # split dataset and save
 with open(args.data_path, 'r') as f:
     entire_dataset = json.load(f)
@@ -44,10 +51,8 @@ dataset_name = pathlib.Path(args.data_path).stem
 first_dataset_path = f'data/first_{dataset_name}_{seed}.json'
 second_dataset_path = f'data/second_{dataset_name}_{seed}.json'
 
-with open(first_dataset_path, 'w') as f:
-    json.dump(first_dataset, f)
-with open(second_dataset_path, 'w') as f:
-    json.dump(second_dataset, f)
+save_dataset(first_dataset, first_dataset_path)
+save_dataset(second_dataset, second_dataset_path)
 
 # create config files
 with open('conf/config_template.yaml', 'r') as f:
