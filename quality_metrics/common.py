@@ -2,6 +2,7 @@ import os
 import pathlib
 
 import torch
+import random
 import json
 from transformers import (
     CodeLlamaTokenizer,
@@ -15,6 +16,9 @@ from openai import OpenAI
 from typing import Optional, List, Any, Dict
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+
+from datasets import Dataset
+
 from quality_metrics.utils.p3 import get_puzzle_sol
 
 
@@ -121,11 +125,50 @@ def save_dataset(dataset: List[Problem], path: str):
 
 def load_dataset(path: str):
     dataset = []
+    print(os.getcwd())
     with open(path, 'r') as f:
         json_dataset = json.load(f)
     for p in json_dataset:
         dataset.append(Problem(**p))
     return dataset
+
+
+def get_hf_dataset(dataset, quality_key=None, seed=0):
+    def process_fn(el):
+        if quality_key is not None:  # in this case we raise an error if we don't have the quality
+            try:
+                el['quality'] = np.mean(el['quality'][quality_key])
+            except Exception as e:
+                print(el)
+                raise e
+        keys_to_rm = []
+        for key, val in el.items():
+            if isinstance(val, list):
+                keys_to_rm.append(key)
+        for key in keys_to_rm:
+            del el[key]
+
+        el['program_str'] = "```python\n"+el['instruction'] + "\n\n" + el['completion'] + "\n```"
+        return el
+
+    processed_ds = []
+    if quality_key is not None:
+        for el in dataset:
+            if 'quality' in el:
+                if quality_key in el['quality']:
+                    processed_ds.append(process_fn(el))
+    else:
+        processed_ds = [process_fn(el) for el in dataset]
+
+    dataset = Dataset.from_list(processed_ds)
+    dataset = dataset.shuffle(seed=seed)
+    return dataset
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
 
 ### quality
