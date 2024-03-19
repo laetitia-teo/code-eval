@@ -18,7 +18,7 @@ def compute_quality(metric):
 
 @hydra.main(config_path='conf', config_name='quality_default')
 def main(args):
-    match args.metric.name:
+    match args.metric.name.split(':')[0]:
         case 'pp':
             metric = PredictionProgressCE(
                 **args.metric,
@@ -46,9 +46,14 @@ def main(args):
             raise NotImplementedError(f'{args.dataset.name} dataset not implemented')
 
     path_name = pathlib.Path(args.metric.archive_path_or_list).stem
+    if len(args.metric.name.split(':')) == 1:
+        suffix = f'_quality_{path_name}.json'
+    else:
+        # adds the model name to the dataset path
+        suffix = f'_quality_{path_name}_{args.metric.name.split(":")[-1]}.json'
     save_path = args.dataset.path.replace(
         '.json',
-        f'_quality_{path_name}.json'
+        suffix
     )
 
     if os.path.exists(save_path):  # resume
