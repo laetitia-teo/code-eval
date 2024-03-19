@@ -1,7 +1,25 @@
 training:
-  analysis_mode: false
-  analysis_dataset: 'deepseek-ai/deepseek-coder-1.3b-instruct'
   train_dataset_names: [data/p3_pb_dataset.json]
+  seed: 42
+  log_level: INFO
+  local_rank: -1
+  device: cuda
+  n_gpu: 1
+  per_device_train_batch_size: 2
+  gradient_accumulation_steps: 1
+  run_name: less_dev_warmup
+  save_strategy: 'no'
+  # warmup_ratio: 0.1
+  lr_scheduler_type: 'cosine'
+  num_train_epochs: 1
+  learning_rate: 1e-5
+  bf16: true
+  fp16: false
+  gradient_checkpointing: false
+  logging_steps: 1
+  output_dir: outputs
+  optim: adam
+  max_grad_norm: 0.3
 
 model:
   model_name_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
