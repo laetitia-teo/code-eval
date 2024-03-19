@@ -3,7 +3,11 @@ import sys
 import os
 import json
 import logging
+
+import hydra
 from omegaconf import OmegaConf
+from typing import Any
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -23,8 +27,68 @@ from quality_metrics.common import (
     dataset_from_p3
 )
 
+from less_utils import (collect_grads, collect_reps, get_loss)
+# from less.data_selection.collect_grad_reps import (collect_grads, collect_reps,
+#                                                    get_loss)
+# from less_utils import get_training_dataset
+# from less.data_selection.get_training_dataset import get_training_dataset
+from less_utils import get_dataloader
+# from less.data_selection.get_validation_dataset import (get_dataloader,
+#                                                         get_dataset)
+from less_utils import get_data_statistics
+# from less.train.data_arguments import DataArguments, get_data_statistics
+from less_utils import add_padding_to_tokenizer
+# from less.train.model_arguments import ModelArguments, add_padding_to_tokenizer
+
+
 logger = logging.getLogger(__name__)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+
+# TODO maybe move to utils
+def load_model(model_name_or_path: str,
+               torch_dtype: Any = torch.bfloat16) -> Any:
+    """
+    Load a model from a given model name or path.
+
+    Args:
+        model_name_or_path (str): The name or path of the model.
+        torch_dtype (Any, optional): The torch data type. Defaults to torch.bfloat16.
+
+    Returns:
+        Any: The loaded model.
+    """
+
+    is_peft = os.path.exists(os.path.join(
+        model_name_or_path, "adapter_config.json"))
+    if is_peft:
+        # load this way to make sure that optimizer states match the model structure
+        config = LoraConfig.from_pretrained(model_name_or_path)
+        base_model = AutoModelForCausalLM.from_pretrained(
+            config.base_model_name_or_path, torch_dtype=torch_dtype, device_map="auto")
+        model = PeftModel.from_pretrained(
+            base_model, model_name_or_path, device_map="auto")
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name_or_path, torch_dtype=torch_dtype, device_map="auto")
+
+    for name, param in model.named_parameters():
+        if 'lora' in name or 'Lora' in name:
+            param.requires_grad = True
+    return model
+
+
+def calculate_influence_score(training_info: torch.Tensor, validation_info: torch.Tensor):
+    """Calculate the influence score.
+
+    Args:
+        training_info (torch.Tensor): training info (gradients/representations) stored in a tensor of shape N x N_DIM
+        validation_info (torch.Tensor): validation info (gradients/representations) stored in a tensor of shape N_VALID x N_DIM
+    """
+    # N x N_VALID
+    influence_scores = torch.matmul(
+        training_info, validation_info.transpose(0, 1))
+    return influence_scores
 
 
 class LESS(QualityMetric):
@@ -41,32 +105,36 @@ class LESS(QualityMetric):
     compute the influence function.
     """
     def __init__(
-            self, 
-            model_id_or_path: str,
-            archive_path_or_list: str,
-            dataset_path: str,
-            save_path: str,
+            self,
             training_args: OmegaConf,
             model_args: OmegaConf,
             data_args: OmegaConf,
+            grad_args: OmegaConf,
+            influence_args: OmegaConf,
+            **kwargs,
         ):
 
         self.lora_target_modules = ['q_proj', 'k_proj', 'v_proj', 'o_proj']
-        self.model_id_or_path = model_id_or_path
-        self.save_path = save_path
         self.training_args = training_args
         self.model_args = model_args
         self.data_args = data_args
+        self.grad_args = grad_args
+        self.influence_args = influence_args
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         if not os.path.exists(self.save_path):
             os.makedirs(self.save_path)
 
-        self.store = []  # not sure how this will work
+        self.influences = {}
+    
+        self.dtype = torch.float16 if self.grad_args.torch_dtype == "float16" else torch.bfloat16
 
-        self._load_data(archive_path_or_list, dataset_path)
+        # self._load_data(archive_path_or_list, dataset_path)
         self._warmup()
         self._compute_train_grads()
         self._compute_archive_grads()
+        self._get_influence()
 
     def _load_data(self, archive_path_or_list, dataset_path):
         # load archive
@@ -106,7 +174,7 @@ class LESS(QualityMetric):
         logger.info(f"Dataset parameters {self.data_args}")
 
         # Set seed before initializing model.
-        less.set_seed(self.training_args.seed)
+        less.set_seed(self.training_args.seed)  # TODO do this with our own fns
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_args.model_name_or_path)
         # Load training dataset
@@ -114,7 +182,7 @@ class LESS(QualityMetric):
 
         model = AutoModelForCausalLM.from_pretrained(
             self.model_args.model_name_or_path, torch_dtype=self.model_args.torch_dtype)
-        less.train.model_arguments.add_padding_to_tokenizer(tokenizer)
+        add_padding_to_tokenizer(tokenizer)  # TODO do this with our own fns
 
         # resize embeddings if needed (e.g. for LlamaTokenizer)
         embedding_size = model.get_input_embeddings().weight.shape[0]
@@ -150,7 +218,7 @@ class LESS(QualityMetric):
                 model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
         # TODO some work here
-        less.train.self.data_argsments.get_data_statistics(train_dataset)
+        get_data_statistics(train_dataset)
 
         if "dataset" in train_dataset.features:
             train_dataset = train_dataset.remove_columns(
@@ -207,15 +275,128 @@ class LESS(QualityMetric):
             os.remove(pytorch_model_path) if os.path.exists(
                 pytorch_model_path) else None
         
-    def _compute_grads(self):
-        ...
+    def _compute_grads(self, dataset):  # TODO simplify
+        # tokenizer = AutoTokenizer.from_pretrained(self.grad_args.model_path)
+        model = load_model(self.grad_args.model_path, self.dtype)
+        # model = self.model  # TODO beware of stateful modifs
+
+        # pad token is not added by default for pretrained models
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.add_special_tokens({"pad_token": "<pad>"})
+
+        # resize embeddings if needed (e.g. for LlamaTokenizer)
+        embedding_size = model.get_input_embeddings().weight.shape[0]
+        if len(self.tokenizer) > embedding_size:
+            model.resize_token_embeddings(len(self.tokenizer))
+
+        if self.grad_args.initialize_lora:
+            assert not isinstance(model, PeftModel)
+            lora_config = LoraConfig(
+                task_type=TaskType.CAUSAL_LM,
+                inference_mode=False,
+                r=self.grad_args.lora_r,
+                lora_alpha=self.grad_args.lora_alpha,
+                lora_dropout=self.grad_args.lora_dropout,
+                target_modules=self.grad_args.lora_target_modules,
+            )
+            model = get_peft_model(model, lora_config)
+
+        if isinstance(model, PeftModel):
+            model.print_trainable_parameters()
+
+        adam_optimizer_state = None
+        if self.grad_args.info_type == "grads" and self.grad_args.gradient_type == "adam":
+            optimizer_path = os.path.join(self.grad_args.model_path, "optimizer.bin")
+            adam_optimizer_state = torch.load(
+                optimizer_path, map_location="cpu")["state"]
+
+        # if self.grad_args.task is not None:  # modification here
+        #     dataset = get_dataset(self.grad_args.task,
+        #                         data_dir=self.grad_args.data_dir,
+        #                         tokenizer=self.tokenizer,
+        #                         chat_format=self.grad_args.chat_format,
+        #                         use_chat_format=self.grad_args.use_chat_format,
+        #                         max_length=self.grad_args.max_length,
+        #                         zh=self.grad_args.zh)
+        #     dataloader = get_dataloader(dataset, tokenizer=self.tokenizer)
+        # else:
+        #     assert self.grad_args.train_file is not None
+        #     dataset = get_training_dataset(
+        #         self.grad_args.train_file, self.tokenizer, self.grad_args.max_length, sample_percentage=1.0)
+        #     columns = deepcopy(dataset.column_names)
+        #     columns.remove("input_ids")
+        #     columns.remove("labels")
+        #     columns.remove("attention_mask")
+        #     dataset = dataset.remove_columns(columns)
+        dataloader = get_dataloader(dataset, tokenizer=self.tokenizer)
+
+        # this saves the grads to disk
+        if self.grad_args.info_type == "reps":
+            collect_reps(dataloader, model, self.grad_args.output_path,
+                        max_samples=self.grad_args.max_samples)
+        elif self.grad_args.info_type == "grads":
+            collect_grads(dataloader,
+                        model,
+                        self.grad_args.output_path,
+                        proj_dim=self.grad_args.gradient_projection_dimension,
+                        gradient_type=self.grad_args.gradient_type,
+                        adam_optimizer_state=adam_optimizer_state,
+                        max_samples=self.grad_args.max_samples)
+        elif self.grad_args.info_type == "loss":
+            get_loss(dataloader, model, self.grad_args.output_path)
+
 
     def _compute_archive_grads(self):
-        ...
+        # load archive dataset
+        # TODO change arguments so that we do sgd instead of adam
+        dataset = ...
+        self._compute_grads(dataset)
     
     def _compute_train_grads(self):
-        ...
+        dataset = ...
+        self._compute_grads(dataset)
     
+    def _get_influence(self):
+        if sum(self.influence_args.checkpoint_weights) != 1:
+            s = sum(self.influence_args.checkpoint_weights)
+            self.influence_args.checkpoint_weights = [i/s for i in args.checkpoint_weights]
+
+        for target_task_name in self.influence_args.target_task_names:
+            for train_file_name in self.influence_args.train_file_names:
+                influence_score = 0
+                for i, ckpt in enumerate(self.influence_args.ckpts):
+                    # validation_path = self.influence_args.validation_gradient_path.format(
+                    # target_task_name, ckpt)
+                    validation_path = self.influence_args.validation_gradient_path.format(
+                        ckpt, target_task_name)
+                    validation_info = torch.load(validation_path)
+
+                    if not torch.is_tensor(validation_info):
+                        validation_info = torch.tensor(validation_info)
+                    validation_info = validation_info.to(self.device).float()
+                    # gradient_path = self.influence_args.gradient_path.format(train_file_name, ckpt)
+                    gradient_path = self.influence_args.gradient_path.format(ckpt, train_file_name)
+                    training_info = torch.load(gradient_path)
+
+                    if not torch.is_tensor(training_info):
+                        training_info = torch.tensor(training_info)
+                    training_info = training_info.to(self.device).float()
+
+                    influence_score += self.influence_args.checkpoint_weights[i] * \
+                        calculate_influence_score(
+                            training_info=training_info, validation_info=validation_info)
+                influence_score = influence_score.mean(-1)[0]
+                output_dir = os.path.join(self.influence_args.output_path, target_task_name)
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                output_file = os.path.join(
+                    self.influence_args.output_path, target_task_name, f"{train_file_name}_influence_score.pt")
+                torch.save(influence_score, output_file)
+                print("Saved influence score to {}".format(output_file))
+
+    
+    def __call__(self, p: Problem):
+        return self.influences[p.idx]
 
 
 class InstantLESS(QualityMetric):  # Would be interesting to cosine sim these one with the previous ones
@@ -226,6 +407,17 @@ class InstantLESS(QualityMetric):  # Would be interesting to cosine sim these on
     pass
 
 
+@hydra.main(config_path='../../conf', config_name='less_dev')
+def main(args):
+    less_metric = LESS(
+        args.training, 
+        args.model,
+        args.data,
+        args.grad,
+        args.influence,
+    )
+    print('Done!')
+
+
 if __name__ == "__main__":
-    # test goes here
-    NotImplemented
+    main()

@@ -1,0 +1,57 @@
+training:
+  analysis_mode: false
+  analysis_dataset: 'deepseek-ai/deepseek-coder-1.3b-instruct'
+  train_dataset_names: [data/p3_pb_dataset.json]
+
+model:
+  model_name_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
+  config_name: null
+  tokenizer_name: null
+  cache_dir: None
+  use_fast_tokenizer: false
+  model_revision: main
+  use_auth_token: false
+  torch_dtype: bfloat16
+  lora: true
+  lora_r: 128
+  lora_alpha: 512
+  lora_dropout: 0.1
+  lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+data:
+  train_files: [data/p3_pb_dataset.json]
+  overwrite_cache: false
+  preprocessing_num_workers: null
+  max_seq_length: null
+  sample_data_seed: 42
+  percentage: 1.0
+
+grad:
+  task: null
+  train_file: null
+  info_type: grad 
+  model_path: null
+  max_samples: null
+  torch_dtype: bfloat16
+  output_path: null
+  data_dir: null
+  gradient_projection_dimension: 8192
+  gradient_type: adam
+  chat_format: tulu  # ?
+  use_chat_format: yes
+  max_length: 2048
+  zh: false  # remove
+  initialize_lora: false
+  lora_r: 8
+  lora_alpha: 32
+  lora_dropout: 0.1
+  lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
+
+influence:
+  gradient_path: "{} ckpt{}"
+  train_file_names: ['data/p3_pb_dataset.json']
+  ckpts: null
+  checkpoint_weights: null
+  target_task_names: []
+  validation_gradient_path: "{} ckpt{}"
+  output_path: selected_data  # remove
