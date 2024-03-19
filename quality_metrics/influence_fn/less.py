@@ -15,7 +15,7 @@ import torch.distributed as dist
 
 import transformers
 from transformers import (AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling,
-                          Trainer)
+                          Trainer, TrainingArguments)
 import datasets
 from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 
@@ -24,21 +24,16 @@ from quality_metrics.common import (
     QualityMetric,
     Problem,
     create_model_and_tokenizer,
-    dataset_from_p3
+    dataset_from_p3,
+    load_dataset,
+    get_hf_dataset,
+    set_seed,
 )
 
 from less_utils import (collect_grads, collect_reps, get_loss)
-# from less.data_selection.collect_grad_reps import (collect_grads, collect_reps,
-#                                                    get_loss)
-# from less_utils import get_training_dataset
-# from less.data_selection.get_training_dataset import get_training_dataset
 from less_utils import get_dataloader
-# from less.data_selection.get_validation_dataset import (get_dataloader,
-#                                                         get_dataset)
 from less_utils import get_data_statistics
-# from less.train.data_arguments import DataArguments, get_data_statistics
 from less_utils import add_padding_to_tokenizer
-# from less.train.model_arguments import ModelArguments, add_padding_to_tokenizer
 
 
 logger = logging.getLogger(__name__)
@@ -123,8 +118,8 @@ class LESS(QualityMetric):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        if not os.path.exists(self.save_path):
-            os.makedirs(self.save_path)
+        # if not os.path.exists(self.save_path):
+        #     os.makedirs(self.save_path)
 
         self.influences = {}
     
@@ -157,7 +152,7 @@ class LESS(QualityMetric):
             handlers=[logging.StreamHandler(sys.stdout)],
         )
         transformers.utils.logging.set_verbosity_info()
-        log_level = self.training_args.get_process_log_level()
+        log_level = self.training_args.log_level
         logger.setLevel(log_level)
         datasets.utils.logging.set_verbosity(log_level)
         transformers.utils.logging.set_verbosity(log_level)
@@ -167,21 +162,21 @@ class LESS(QualityMetric):
         # Log on each process the small summary:
         logger.warning(
             f"Process rank: {self.training_args.local_rank}, device: {self.training_args.device}, n_gpu: {self.training_args.n_gpu}"
-            + f"distributed training: {bool(self.training_args.local_rank != -1)}, 16-bits training: {self.training_args.fp16}"
+            + f"distributed training: {bool(self.training_args.local_rank != -1)}, dtype: {self.model_args.torch_dtype}"
         )
         logger.info(f"Training parameters {self.training_args}")
         logger.info(f"Model parameters {self.model_args}")
         logger.info(f"Dataset parameters {self.data_args}")
 
         # Set seed before initializing model.
-        less.set_seed(self.training_args.seed)  # TODO do this with our own fns
+        set_seed(self.training_args.seed)  # TODO do this with our own fns
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_args.model_name_or_path)
         # Load training dataset
-        train_dataset = self.dataset  # TODO some work needed here
+        train_dataset = json.load(open(self.data_args.train_files[0], 'r'))  # TODO some work needed here
 
         model = AutoModelForCausalLM.from_pretrained(
-            self.model_args.model_name_or_path, torch_dtype=self.model_args.torch_dtype)
+            self.model_args.model_name_or_path, torch_dtype=self.dtype)
         add_padding_to_tokenizer(tokenizer)  # TODO do this with our own fns
 
         # resize embeddings if needed (e.g. for LlamaTokenizer)
@@ -218,12 +213,12 @@ class LESS(QualityMetric):
                 model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
         # TODO some work here
-        get_data_statistics(train_dataset)
-
-        if "dataset" in train_dataset.features:
-            train_dataset = train_dataset.remove_columns(
-                ["dataset", "id", "messages"])
-                
+        train_dataset = get_hf_dataset(train_dataset)  # processing and casting as a huggingface dataset
+        # get_data_statistics(train_dataset)  # TODO maybe add again with tokenized dataset
+        # if "dataset" in train_dataset.features:
+        #     train_dataset = train_dataset.remove_columns(
+        #         ["dataset", "id", "messages"])
+        
         for index in np.random.randint(len(train_dataset), 1):
             logger.info(
                 f"Sample {index} of the training set: {train_dataset[index]}.")
@@ -233,22 +228,26 @@ class LESS(QualityMetric):
         logger.info(f"trainable model_params: {model_params}")
 
         analysis_dataset = None
-        if self.training_args.analysis_mode:
-            from less.data_selection.get_validation_dataset import get_dataset
-            analysis_dataset = get_dataset(self.training_args.analysis_dataset,
-                                        data_dir=self.data_args.data_dir,
-                                        tokenizer=tokenizer,
-                                        max_length=self.data_args.max_seq_length)
+        # if self.training_args.analysis_mode:
+        #     from less.data_selection.get_validation_dataset import get_dataset
+        #     analysis_dataset = get_dataset(self.training_args.analysis_dataset,
+        #                                 data_dir=self.data_args.data_dir,
+        #                                 tokenizer=tokenizer,
+        #                                 max_length=self.data_args.max_seq_length)
 
         if dist.is_initialized() and dist.get_rank() == 0:
             print(model)
         elif not dist.is_initialized():
             print(model)
 
+        training_arguments = TrainingArguments(
+            **self.training_args
+        )
+
         # train model
         trainer = Trainer(
             model=model,
-            args=self.training_args,
+            args=training_arguments,
             train_dataset=train_dataset,
             eval_dataset=analysis_dataset,
             tokenizer=tokenizer,
@@ -407,7 +406,7 @@ class InstantLESS(QualityMetric):  # Would be interesting to cosine sim these on
     pass
 
 
-@hydra.main(config_path='../../conf', config_name='less_dev')
+@hydra.main(config_path='../../conf', config_name='less_dev', version_base='1.2')
 def main(args):
     less_metric = LESS(
         args.training, 
