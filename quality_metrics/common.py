@@ -1,4 +1,5 @@
 import os
+import re
 import pathlib
 
 import torch
@@ -133,7 +134,23 @@ def load_dataset(path: str):
     return dataset
 
 
-def get_hf_dataset(dataset, quality_key=None, seed=0):
+def p3_insert_description(description, instruction):
+    # think this works in all cases
+    return '\n'.join([instruction.split('\n')[0], description] + instruction.split('\n')[1:])
+
+
+def process_description(description):
+    if isinstance(description, str):
+        # process string so it matches the expected format
+        pattern = '    """.+"""'
+        if not re.match(pattern, description, re.DOTALL):
+            description = f'    """{description}"""'
+        return description
+    else:
+        return process_description(description[0])
+
+
+def get_hf_dataset(dataset, quality_key=None, seed=0, use_description=True):
     def process_fn(el):
         if quality_key is not None:  # in this case we raise an error if we don't have the quality
             try:
@@ -141,6 +158,10 @@ def get_hf_dataset(dataset, quality_key=None, seed=0):
             except Exception as e:
                 print(el)
                 raise e
+            
+        instruction = p3_insert_description(process_description(el['description']), el['instruction'])
+        el['program_str'] = instruction + "\n\n" + el['completion'] + "\n\nassert f(g()) is True"
+        
         keys_to_rm = []
         for key, val in el.items():
             if isinstance(val, list):
@@ -148,7 +169,6 @@ def get_hf_dataset(dataset, quality_key=None, seed=0):
         for key in keys_to_rm:
             del el[key]
 
-        el['program_str'] = "```python\n"+el['instruction'] + "\n\n" + el['completion'] + "\n```"
         return el
 
     processed_ds = []

@@ -2,6 +2,7 @@ run_id: null
 
 train: true
 eval: True
+quality_key: pp_diff
 
 # general
 model_id: deepseek-ai/deepseek-coder-1.3b-instruct
@@ -9,7 +10,8 @@ seed: 42
 sol: true
 
 # training
-train_path: data/puzzles_high_fitness_archivetrain.json
+train_path: data/high_quality_dataset_quality_puzzles_train_1_pp_diff.json
+# train_path: data/puzzles_high_fitness_archivetrain.json
 batch_size: 8
 accum_step: 1
 num_epochs: 2

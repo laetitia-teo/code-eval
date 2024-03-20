@@ -2,6 +2,7 @@ import hydra
 from omegaconf import OmegaConf
 
 from train import train
+from train_tmp import train as train_old
 from eval import eval
 
 
@@ -14,7 +15,10 @@ def main(config):
 
     trainer = None
     if config.train:
-        trainer = train(config, run_id=run_id)
+        if config.original:
+            trainer = train_old(config, run_id=run_id)
+        else:
+            trainer = train(config, run_id=run_id)
 
     if config.eval:
         eval(config, run_id=run_id, trainer=trainer)
@@ -22,4 +26,3 @@ def main(config):
 
 if __name__ == "__main__":
     main()
-    
