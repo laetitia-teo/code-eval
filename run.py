@@ -2,7 +2,6 @@ import hydra
 from omegaconf import OmegaConf
 
 from train import train
-from train_tmp import train as train_old
 from eval import eval
 
 
