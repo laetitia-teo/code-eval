@@ -3,7 +3,12 @@ from quality_metrics.common import (
 )
 from quality_metrics.llm_judge.prompt_judge import(
     OpenCodeInterpreter_1, OpenCodeInterpreter_2,
-    yes_finetuning, yes_education
+    yes_finetuning, yes_education,
+    pairwise_tie_educ_advanced,parse_pairwise_tie_cot,
+    pairwise_tie_educ_advanced_cot,pairwise_tie_educ_advanced_2,
+    pairwise_low_educational_value,pairwise_high_educational_value,
+    pairwise_low_educational_value_cot,pairwise_high_educational_value_cot,
+    prompt_abs_score_educ_advanced,
 )
 from quality_metrics.llm_judge.judge_base import Rank_puzzle
 from openai import AzureOpenAI,OpenAI
@@ -155,6 +160,136 @@ class OpenCodeInterpreter(OpenAI_Rank):
         return grades
     
 
+# more about complexity
+class Educational_advance(OpenAI_Rank):
+    def __init__(self,**kwargs) -> None:
+        """ 
+        Opencode_mode: "1" or "2" see prompt
+        prompt_instruction not used
+        """
+        self.prompt = pairwise_tie_educ_advanced_2
+        super().__init__(**kwargs)
+    
+    def parse_response(self, s: str) -> int:
+        return parse_pairwise_tie_cot(s)
+
+    def pairwise_ranking(self, list_puzzle) -> list[int]:
+        """return the winner (puzzle1 or puzzle2)"""
+        list_prompt=[]
+        for i in range(len(list_puzzle)):
+            resp1 = list_puzzle[i][0]
+            resp2 = list_puzzle[i][1]
+            inputs_pairwise = self.prompt.format(puzzle_a=resp1,puzzle_b=resp2) # for pairwise response comparison 
+            list_prompt.append(inputs_pairwise)
+        out = self.multiple_generation(list_prompt)
+        results_pairwise=[]
+        for i in range(len(out)):
+            results_pairwise.append(self.parse_response(out[i]))
+        return results_pairwise
+
+class Educational_advance_cot(OpenAI_Rank):
+    def __init__(self,**kwargs) -> None:
+        """ 
+        Opencode_mode: "1" or "2" see prompt
+        prompt_instruction not used
+        """
+        self.prompt = pairwise_tie_educ_advanced_cot
+        super().__init__(**kwargs)
+    
+    def parse_response(self, s: str) -> int:
+        return parse_pairwise_tie_cot(s)
+
+    def pairwise_ranking(self, list_puzzle) -> list[int]:
+        """return the winner (puzzle1 or puzzle2)"""
+        list_prompt=[]
+        for i in range(len(list_puzzle)):
+            resp1 = list_puzzle[i][0]
+            resp2 = list_puzzle[i][1]
+            inputs_pairwise = self.prompt.format(puzzle1=resp1,puzzle2=resp2) # for pairwise response comparison 
+            list_prompt.append(inputs_pairwise)
+        out = self.multiple_generation(list_prompt)
+        results_pairwise=[]
+        for i in range(len(out)):
+            results_pairwise.append(self.parse_response(out[i]))
+        return results_pairwise
+    
+
+class Educational_advance_abs(OpenAI_Rank):
+    def __init__(self,mode="1",**kwargs) -> None:
+        """ 
+        Opencode_mode: "1" or "2" see prompt
+        prompt_instruction not used
+        """
+        if mode=="1":
+            self.prompt= prompt_abs_score_educ_advanced
+        # elif mode=="2":
+        #     self.prompt_1= OpenCodeInterpreter_2
+        super().__init__(**kwargs)
+        
+
+    def parse_score(self,s:str):
+        score=-1
+        try: 
+            score = int(s.split(": ")[1])
+        except:
+            try:
+                score = int(s)
+            except:
+                pass
+        return score
+
+    
+
+    def absolute_grade(self,list_codes):
+        """return the list_puzzles int between 0 and 10"""
+        list_prompt=[]
+        for code in list_codes:
+                list_prompt.append(self.prompt.format(puzzle=code))
+        out = self.multiple_generation(list_prompt)
+        grades = []
+        for i in range(len(out)):
+            grades.append(self.parse_score(out[i]))
+        return grades
+
+
+class Educational(OpenAI_Rank):
+    def __init__(self,mode,cot=False,**kwargs) -> None:
+        """ 
+        Opencode_mode: "1" or "2" see prompt
+        prompt_instruction not used
+        """
+        if cot:
+            if mode == "beginner":
+                self.prompt = pairwise_low_educational_value_cot
+            elif mode == "advanced":
+                self.prompt = pairwise_high_educational_value_cot
+            else:
+                raise ValueError(f"Invalid mode: {mode}")
+        else:
+            if mode == "beginner":
+                self.prompt = pairwise_low_educational_value
+            elif mode == "advanced":
+                self.prompt = pairwise_high_educational_value
+            else:
+                raise ValueError(f"Invalid mode: {mode}")
+        super().__init__(**kwargs)
+    
+    def parse_response(self, s: str) -> int:
+        return parse_pairwise_tie_cot(s)
+
+    def pairwise_ranking(self, list_puzzle) -> list[int]:
+        """return the winner (puzzle1 or puzzle2)"""
+        list_prompt=[]
+        for i in range(len(list_puzzle)):
+            resp1 = list_puzzle[i][0]
+            resp2 = list_puzzle[i][1]
+            inputs_pairwise = self.prompt.format(puzzle_a=resp1,puzzle_b=resp2) # for pairwise response comparison 
+            list_prompt.append(inputs_pairwise)
+        out = self.multiple_generation(list_prompt)
+        results_pairwise=[]
+        for i in range(len(out)):
+            results_pairwise.append(self.parse_response(out[i]))
+        return results_pairwise
 
 class Yes_model(OpenAI_Rank):
     def __init__(self,yes_mode="finetuning",**kwargs) -> None:

@@ -64,6 +64,9 @@ class HF_Rank(Rank_puzzle):
 
         else:
             kwargs = {}
+            if "JudgeLM-7B-v1.0" in path_model:
+                rope_scaling={"type": "dynamic", "factor": 2.0} 
+                kwargs["rope_scaling"]=rope_scaling
             if self.load_in_4bit or self.load_in_8bit:
                 from transformers import BitsAndBytesConfig
                 if self.load_in_4bit:
@@ -203,7 +206,7 @@ class Auto_j_Rank(HF_Rank):
 # WIP 
     
 from quality_metrics.llm_judge.utils_hf import (
-    KeywordStoppingCriteria,conv_judge_pair,
+    KeywordStoppingCriteria,KeywordsStoppingCriteria,conv_judge_pair,
     conv_judge_pair_w_reference,
     parse_score_JudgeLM,
     translate_score_to_win_list_JudgeLM,
@@ -224,6 +227,10 @@ class JudgeLM(HF_Rank):
         super().__init__(puzzle_dict=puzzle_dict,mode_rank=mode_rank,prompt_instruction=prompt_instruction,model_id=model_id,n_generation=n_generation,bs=bs,exllama2=exllama2,load_in_4bit=load_in_4bit,load_in_8bit=load_in_8bit)
         self.exllama2 = exllama2
         self.fast_eval = fast_eval # if True, just give score without explanation, if False, give explanation
+        if "7b" in model_id.lower():
+            self.number_params ='7b'
+        elif "13b" in model_id.lower():
+            self.number_params ='13b'
 
     def generate(self,list_prompt: list[str],eos_string="\n"):
         assert isinstance(list_prompt,list)
@@ -232,7 +239,10 @@ class JudgeLM(HF_Rank):
             inputs = self.tokenizer(list_prompt,return_tensors="pt",padding=True)
             len_prompt = inputs.input_ids.shape[1]
             inputs=inputs.to("cuda")
-            stopping_criteria = KeywordStoppingCriteria(eos_string, self.tokenizer, len_prompt)
+            if self.number_params =="13b":
+                stopping_criteria = KeywordsStoppingCriteria(["Assistant 2:",eos_string], self.tokenizer, len_prompt)
+            else:
+                stopping_criteria = KeywordsStoppingCriteria([eos_string], self.tokenizer, len_prompt)
             output_ids = self.model.generate(
                         **inputs,
                         do_sample=do_sample,
@@ -248,6 +258,10 @@ class JudgeLM(HF_Rank):
 
                         self.explanation.append({"prompt":list_prompt[i],"output":outputs[i],"full" : list_prompt[i]+"\n"+outputs[i]})
                     outputs = [out[: out.find(eos_string)].strip() for out in outputs]
+                else:
+                    for i in range(len(list_prompt)):
+                        self.explanation.append({"prompt":list_prompt[i],"output":outputs[i],"full" : list_prompt[i]+"\n"+outputs[i]})
+                    
         return outputs
 
     def pairwise_ranking(self, list_puzzle) -> list[int]:
@@ -268,7 +282,8 @@ class JudgeLM(HF_Rank):
         out = self.generate(list_prompt,eos_string=conv.sep)
         results_pairwise_score=[]
         for i in range(len(out)):
-            results_pairwise_score.append(parse_score_JudgeLM(out[i])) # for absolute ranking just get that with a ref puzzles.
+            score_i=parse_score_JudgeLM(out[i],mode=self.number_params)
+            results_pairwise_score.append(score_i) # for absolute ranking just get that with a ref puzzles.
         results_pairwise = translate_score_to_win_list_JudgeLM(results_pairwise_score)
         return results_pairwise
     
@@ -294,7 +309,8 @@ class JudgeLM(HF_Rank):
         out = self.generate(list_prompt,eos_string=conv.sep)
         results_absolute_score=[]
         for i in range(len(out)):
-            results_absolute_score.append(parse_score_JudgeLM(out[i])[0]) # for absolute ranking just get that with a ref puzzles.
+            score_i=parse_score_JudgeLM(out[i],mode=self.number_params)
+            results_absolute_score.append(score_i[0]) # for absolute ranking just get that with a ref puzzles.
         return results_absolute_score
 
 
