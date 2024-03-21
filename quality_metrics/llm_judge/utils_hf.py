@@ -117,14 +117,35 @@ from typing import List, Tuple, Any
 import torch
 from transformers import StoppingCriteria
 
-def parse_score_JudgeLM(review):
+def parse_score_JudgeLM(review,mode='7b'):
+    """
+    anwser format:
+    for 13b mode 
+        ### Response:
+        Assistant 1: 7
+        Assistant 2: 8
+
+    """
+
     try:
-        score_pair = review.split('\n')[0]
-        score_pair = score_pair.replace(',', ' ')
-        sp = score_pair.split(' ')
-        if len(sp) == 2:
-            return [float(sp[0]), float(sp[1])]
+        if mode == '7b':
+            score_pair = review.split('\n')[0]
+            score_pair = score_pair.replace(',', ' ')
+            sp = score_pair.split(' ')
+            if len(sp) == 2:
+                return [float(sp[0]), float(sp[1])]
+        elif mode == '13b':
+            score1, score2 = -1, -1
+            for line in review.split('\n'):
+                if "Assistant 1:" in line:
+                    score1 = int(line.split(":")[1])
+                elif "Assistant 2:" in line:
+                    score2 = int(line.split(":")[1])
+                if score1 != -1 and score2 != -1:
+                    return [score1, score2]
+            return [score1, score2]
         else:
+            print("mode not supported")
             # print("review: ", review)
             # raise Exception('Invalid score pair.')
             raise Exception()
@@ -214,6 +235,49 @@ class KeywordStoppingCriteria(StoppingCriteria):
                 # print("keyword= ",self.keyword, "out_test= ",out_text)
                 if not(self.keyword in out_text): # if one of the output does not contain the keyword, do not stop
                     return False
+            return True
+        return False
+    
+class KeywordsStoppingCriteria(StoppingCriteria):
+    def __init__(self, list_keywords, tokenizer, len_prompt):
+        self.list_keywords = list_keywords
+        self.tokenizer = tokenizer
+        self.start_len = None
+        self.len_prompt = len_prompt
+
+    def __call__(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+        if self.start_len is None:
+            self.start_len = self.len_prompt
+        else:
+            outputs = self.tokenizer.batch_decode(output_ids[:, self.start_len:], skip_special_tokens=True)
+            for out_text in outputs:
+                # print("keyword= ",self.keyword, "out_test= ",out_text)
+                for key in self.list_keywords:
+                    if not(key in out_text):
+                        return False
+            return True
+        return False
+    
+class KeywordsStoppingCriteriaOrdered(StoppingCriteria):
+    def __init__(self, list_keywords, tokenizer, len_prompt):
+        self.list_keywords = list_keywords
+        self.tokenizer = tokenizer
+        self.start_len = None
+        self.len_prompt = len_prompt
+
+    def __call__(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+        if self.start_len is None:
+            self.start_len = self.len_prompt
+        else:
+            outputs = self.tokenizer.batch_decode(output_ids[:, self.start_len:], skip_special_tokens=True)
+            for out_text in outputs:
+                # print("keyword= ",self.keyword, "out_test= ",out_text)
+                out_raw= out_text
+                for key in self.list_keywords:
+                    idx_key=out_raw.find(key)
+                    out_raw=out_raw[idx_key:]
+                    if not(key in out_text):
+                        return False
             return True
         return False
 # create num to words dict

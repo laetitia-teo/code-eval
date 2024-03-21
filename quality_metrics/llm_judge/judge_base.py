@@ -135,10 +135,10 @@ class Rank_puzzle(QualityMetric):
                     win_record[key2] += 0.5
                 else: 
                     raise ValueError(f"Invalid result: {res_pairwise}")
-                if not i%2:
+                if (i+idx_res)%2==0:
                     self.save_results.append((key1,key2,res_pairwise))
                 else:
-                    self.save_results_inverse.append((key2,key1,res_pairwise))
+                    self.save_results_inverse.append((key1,key2,res_pairwise))
 
                 self.save_all_results.append((key1,key2,res_pairwise))
 
@@ -148,6 +148,9 @@ class Rank_puzzle(QualityMetric):
         
         # Convert ranked keys back to their corresponding puzzle names or descriptions
         ranked_puzzles = [(key, self.puzzle_dict[key]) for key in ranked_keys]
+        sorted_win_record=sorted(win_record, key=win_record.get, reverse=True)
+        dic_sorted_win_record={k: win_record[k] for k in sorted_win_record}
+
         return ranked_puzzles, win_record
     
 
@@ -179,7 +182,10 @@ class Rank_puzzle(QualityMetric):
         list_key_puzzle_to_rank = []
         list_puzzles_to_rank = []
         # Initialize win records for each puzzle key
-        elo_rating = {key: 1500 for key in self.puzzle_dict}
+        if hasattr(self,"elo_rating"):
+            elo_rating = self.elo_rating
+        else:
+            elo_rating = {key: 1500 for key in self.puzzle_dict}
         # Get a list of keys to iterate over
         keys = list(self.puzzle_dict.keys())
         
@@ -207,6 +213,7 @@ class Rank_puzzle(QualityMetric):
             for idx_outcome in range(len(outcomes)):
                 outcome = outcomes[idx_outcome]
                 key_a, key_b = list_key_puzzle_to_rank_bs[idx_outcome]
+                self.save_all_results.append((key_a, key_b,outcome))
             # Update ratings based on the comparison outcome
                 if outcome != 2:  # In case of tie, no need to update both as no one wins
                     if outcome == 1:
@@ -222,6 +229,7 @@ class Rank_puzzle(QualityMetric):
         ranked_keys = sorted(keys, key=lambda x: elo_rating[x], reverse=True)
         ranked_puzzles = [(key, self.puzzle_dict[key]) for key in ranked_keys]
         # return puzzles
+        self.elo_rating = elo_rating
         return ranked_puzzles, elo_rating
         
     def computing_ranking(self) -> Tuple[list,dict]:
