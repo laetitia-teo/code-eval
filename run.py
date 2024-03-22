@@ -14,10 +14,7 @@ def main(config):
 
     trainer = None
     if config.train:
-        if config.original:
-            trainer = train_old(config, run_id=run_id)
-        else:
-            trainer = train(config, run_id=run_id)
+        trainer = train(config, run_id=run_id)
 
     if config.eval:
         eval(config, run_id=run_id, trainer=trainer)
