@@ -14,8 +14,8 @@ import torch
 import torch.distributed as dist
 
 import transformers
-from transformers import (AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling,
-                          Trainer, TrainingArguments)
+from transformers import (AutoModelForCausalLM, AutoTokenizer, DataCollatorForSeq2Seq,
+                          Trainer, TrainingArguments, DataCollatorForLanguageModeling)
 import datasets
 from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 
@@ -28,6 +28,7 @@ from quality_metrics.common import (
     load_dataset,
     get_hf_dataset,
     set_seed,
+    get_tokenized_hf_dataset
 )
 
 from less_utils import (collect_grads, collect_reps, get_loss)
@@ -173,7 +174,9 @@ class LESS(QualityMetric):
 
         tokenizer = AutoTokenizer.from_pretrained(self.model_args.model_name_or_path)
         # Load training dataset
-        train_dataset = json.load(open(self.data_args.train_files[0], 'r'))  # TODO some work needed here
+        train_dataset = json.load(open(self.data_args.train_files[0], encoding="utf-8"))
+        if self.training_args.dev:
+            train_dataset = train_dataset[:20]
 
         model = AutoModelForCausalLM.from_pretrained(
             self.model_args.model_name_or_path, torch_dtype=self.dtype)
@@ -196,7 +199,7 @@ class LESS(QualityMetric):
                 r=self.model_args.lora_r,
                 lora_alpha=self.model_args.lora_alpha,
                 lora_dropout=self.model_args.lora_dropout,
-                target_modules=self.model_args.lora_target_modules,
+                target_modules=list(self.model_args.lora_target_modules),
             )
             model = get_peft_model(model, lora_config)
             logger.info(
@@ -212,16 +215,11 @@ class LESS(QualityMetric):
                     output.requires_grad_(True)
                 model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
-        # TODO some work here
-        train_dataset = get_hf_dataset(train_dataset)  # processing and casting as a huggingface dataset
-        # get_data_statistics(train_dataset)  # TODO maybe add again with tokenized dataset
-        # if "dataset" in train_dataset.features:
-        #     train_dataset = train_dataset.remove_columns(
-        #         ["dataset", "id", "messages"])
+        train_dataset = get_tokenized_hf_dataset(train_dataset, tokenizer)
         
-        for index in np.random.randint(len(train_dataset), 1):
+        for index in np.random.randint(0, len(train_dataset), 2):
             logger.info(
-                f"Sample {index} of the training set: {train_dataset[index]}.")
+                f"Sample {index} of the training set: {train_dataset[int(index)]}.")
 
         model_params = sum(p.numel()
                         for p in model.parameters() if p.requires_grad)
@@ -240,24 +238,39 @@ class LESS(QualityMetric):
         elif not dist.is_initialized():
             print(model)
 
+        training_args = deepcopy(OmegaConf.to_container(self.training_args))
+        del training_args['train_dataset_names']
+        del training_args['log_level']
+        del training_args['local_rank']
+        del training_args['device']
+        del training_args['n_gpu']
+        del training_args['dev']
+        # training_arguments['output_dir']
+        # del training_args['n_gpus']
+
         training_arguments = TrainingArguments(
-            **self.training_args
+            **training_args
         )
 
         # train model
         trainer = Trainer(
             model=model,
+            # output_dir=,
             args=training_arguments,
             train_dataset=train_dataset,
-            eval_dataset=analysis_dataset,
+            # eval_dataset=analysis_dataset,
             tokenizer=tokenizer,
-            data_collator=DataCollatorForLanguageModeling(  # TODO check this works
-                tokenizer=tokenizer, model=model, padding="longest")
+            data_collator=DataCollatorForLanguageModeling(
+                tokenizer=tokenizer, mlm=False,
+            )
+            # data_collator=DataCollatorForSeq2Seq(  # TODO check this works
+            #     tokenizer=tokenizer, model=model, padding="longest")
         )
 
         # Training
         train_result = trainer.train()
         trainer.save_model()  # Saves the tokenizer too for easy upload
+        trainer._save_optimizer_and_scheduler(trainer.args.output_dir)
 
         metrics = train_result.metrics
 
@@ -274,19 +287,22 @@ class LESS(QualityMetric):
             os.remove(pytorch_model_path) if os.path.exists(
                 pytorch_model_path) else None
         
-    def _compute_grads(self, dataset):  # TODO simplify
-        # tokenizer = AutoTokenizer.from_pretrained(self.grad_args.model_path)
+    def _compute_grads(self, dataset, optimizer='adam'):  # TODO simplify
+        tokenizer = AutoTokenizer.from_pretrained(self.grad_args.model_path)
+        dataset = get_tokenized_hf_dataset(dataset, tokenizer)
+        dataset = dataset.remove_columns('text')
+        dataset = dataset.add_column('labels', dataset['input_ids'])
         model = load_model(self.grad_args.model_path, self.dtype)
         # model = self.model  # TODO beware of stateful modifs
 
         # pad token is not added by default for pretrained models
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.add_special_tokens({"pad_token": "<pad>"})
+        if tokenizer.pad_token is None:
+            tokenizer.add_special_tokens({"pad_token": "<pad>"})
 
         # resize embeddings if needed (e.g. for LlamaTokenizer)
         embedding_size = model.get_input_embeddings().weight.shape[0]
-        if len(self.tokenizer) > embedding_size:
-            model.resize_token_embeddings(len(self.tokenizer))
+        if len(tokenizer) > embedding_size:
+            model.resize_token_embeddings(len(tokenizer))
 
         if self.grad_args.initialize_lora:
             assert not isinstance(model, PeftModel)
@@ -304,30 +320,30 @@ class LESS(QualityMetric):
             model.print_trainable_parameters()
 
         adam_optimizer_state = None
-        if self.grad_args.info_type == "grads" and self.grad_args.gradient_type == "adam":
-            optimizer_path = os.path.join(self.grad_args.model_path, "optimizer.bin")
+        if self.grad_args.info_type == "grads" and optimizer == "adam":
+            optimizer_path = os.path.join(self.grad_args.model_path, "optimizer.pt")
             adam_optimizer_state = torch.load(
                 optimizer_path, map_location="cpu")["state"]
 
         # if self.grad_args.task is not None:  # modification here
         #     dataset = get_dataset(self.grad_args.task,
         #                         data_dir=self.grad_args.data_dir,
-        #                         tokenizer=self.tokenizer,
+        #                         tokenizer=tokenizer,
         #                         chat_format=self.grad_args.chat_format,
         #                         use_chat_format=self.grad_args.use_chat_format,
         #                         max_length=self.grad_args.max_length,
         #                         zh=self.grad_args.zh)
-        #     dataloader = get_dataloader(dataset, tokenizer=self.tokenizer)
+        #     dataloader = get_dataloader(dataset, tokenizer=tokenizer)
         # else:
         #     assert self.grad_args.train_file is not None
         #     dataset = get_training_dataset(
-        #         self.grad_args.train_file, self.tokenizer, self.grad_args.max_length, sample_percentage=1.0)
+        #         self.grad_args.train_file, tokenizer, self.grad_args.max_length, sample_percentage=1.0)
         #     columns = deepcopy(dataset.column_names)
         #     columns.remove("input_ids")
         #     columns.remove("labels")
         #     columns.remove("attention_mask")
         #     dataset = dataset.remove_columns(columns)
-        dataloader = get_dataloader(dataset, tokenizer=self.tokenizer)
+        dataloader = get_dataloader(dataset, tokenizer=tokenizer)
 
         # this saves the grads to disk
         if self.grad_args.info_type == "reps":
@@ -335,30 +351,34 @@ class LESS(QualityMetric):
                         max_samples=self.grad_args.max_samples)
         elif self.grad_args.info_type == "grads":
             collect_grads(dataloader,
-                        model,
-                        self.grad_args.output_path,
-                        proj_dim=self.grad_args.gradient_projection_dimension,
-                        gradient_type=self.grad_args.gradient_type,
-                        adam_optimizer_state=adam_optimizer_state,
-                        max_samples=self.grad_args.max_samples)
+                          model,
+                          self.grad_args.output_path,
+                          proj_dim=self.grad_args.gradient_projection_dimension,
+                          gradient_type=optimizer,
+                          adam_optimizer_state=adam_optimizer_state,
+                          max_samples=self.grad_args.max_samples)
         elif self.grad_args.info_type == "loss":
             get_loss(dataloader, model, self.grad_args.output_path)
 
 
     def _compute_archive_grads(self):
-        # load archive dataset
-        # TODO change arguments so that we do sgd instead of adam
-        dataset = ...
-        self._compute_grads(dataset)
+        dataset = json.load(open(self.data_args.train_files[0], encoding="utf-8"))
+        if self.training_args.dev:
+            dataset = dataset[5:10]
+        self._compute_grads(dataset, optimizer='sgd')
     
     def _compute_train_grads(self):
-        dataset = ...
-        self._compute_grads(dataset)
+        dataset = json.load(open(self.data_args.train_files[0], encoding="utf-8"))
+        if self.training_args.dev:
+            dataset = dataset[:5]
+        self._compute_grads(dataset, optimizer='adam')
     
     def _get_influence(self):
-        if sum(self.influence_args.checkpoint_weights) != 1:
-            s = sum(self.influence_args.checkpoint_weights)
-            self.influence_args.checkpoint_weights = [i/s for i in args.checkpoint_weights]
+        # if sum(self.influence_args.checkpoint_weights) != 1:
+        #     s = sum(self.influence_args.checkpoint_weights)
+        #     self.influence_args.checkpoint_weights = [i/s for i in 
+        #         self.influence_args.checkpoint_weights]
+        pass
 
         for target_task_name in self.influence_args.target_task_names:
             for train_file_name in self.influence_args.train_file_names:
@@ -381,7 +401,7 @@ class LESS(QualityMetric):
                         training_info = torch.tensor(training_info)
                     training_info = training_info.to(self.device).float()
 
-                    influence_score += self.influence_args.checkpoint_weights[i] * \
+                    influence_score += 1 * \
                         calculate_influence_score(
                             training_info=training_info, validation_info=validation_info)
                 influence_score = influence_score.mean(-1)[0]

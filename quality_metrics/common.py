@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 
 from datasets import Dataset
 
+from utils_test import prompt_train  # TODO move these someplace else?
 from quality_metrics.utils.p3 import get_puzzle_sol
 
 
@@ -112,6 +113,7 @@ def save_dataset(dataset: List[Problem], path: str):
         el['instruction'] = p.instruction
         el['completion'] = p.completion
         el['idx'] = p.idx
+        # print(p.quality)
         el['quality'] = p.quality
         el['description'] = p.description
         el['origin'] = p.origin
@@ -150,9 +152,28 @@ def process_description(description):
         return process_description(description[0])
 
 
+def formatting_prompts_func(example):
+    output_texts = []
+    # print(len(example['program_str']))
+    for i in range(len(example['program_str'])):
+
+        puzzle= example['program_str'][i]
+        try:
+            prompt_f=puzzle.split("def g(")[0]
+            prompt_g= "def g(" + puzzle.split("def g(")[1]
+            full_prompt = prompt_train.format(pb=prompt_f, g=prompt_g)
+            output_texts.append(full_prompt)
+        except:
+            print("error in formatting_prompts_func idx",i)
+            print(example['program_str'][i])
+            print("======================")
+            print(puzzle)
+    return output_texts
+
+
 def get_hf_dataset(dataset, quality_key=None, seed=0, use_description=True):
     def process_fn(el):
-        if quality_key is not None:  # in this case we raise an error if we don't have the quality
+        if quality_key is not None:  # in this case we raise an error if we don't have quality
             try:
                 el['quality'] = np.mean(el['quality'][quality_key])
             except Exception as e:
@@ -182,6 +203,25 @@ def get_hf_dataset(dataset, quality_key=None, seed=0, use_description=True):
 
     dataset = Dataset.from_list(processed_ds)
     dataset = dataset.shuffle(seed=seed)
+    return dataset
+
+
+def get_tokenized_hf_dataset(dataset, tokenizer, use_description=True, max_size=2048, labels=False):
+    def process_fn(el):
+        instruction = p3_insert_description(process_description(el['description']), el['instruction'])
+        puzzle = instruction + "\n\n" + el['completion'] + "\n\nassert f(g()) is True"
+        prompt_f = puzzle.split("def g(")[0]
+        prompt_g= "def g(" + puzzle.split("def g(")[1]
+        return prompt_train.format(pb=prompt_f, g=prompt_g)
+
+    texts = [process_fn(el) for el in dataset]
+    tokenizer_outs = tokenizer(texts)
+    dataset = [{'input_ids': tokenizer_outs.input_ids[i], 'text': texts[i]} for i in range(len(texts)) 
+               if len(tokenizer_outs.input_ids[i]) < max_size]
+    if labels:
+        for el in dataset:
+            el['label'] = el['input_ids']
+    dataset = Dataset.from_list(dataset)
     return dataset
 
 

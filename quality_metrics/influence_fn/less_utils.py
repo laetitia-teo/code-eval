@@ -30,6 +30,7 @@ from datasets import Dataset
 
 def prepare_batch(batch, device=torch.device("cuda:0")):
     """ Move the batch to the device. """
+    device = torch.device('cpu')
     for key in batch:
         batch[key] = batch[key].to(device)
 
@@ -98,6 +99,7 @@ def get_number_of_params(model):
     num_params = sum([p.numel()
                      for p in model.parameters() if p.requires_grad])
     print(f"Total number of parameters that require gradients: {num_params}")
+    return num_params
 
 
 def obtain_gradients(model, batch):
@@ -142,9 +144,10 @@ def obtain_gradients_with_adam(model, batch, avg, avg_sq):
 
 def prepare_optimizer_state(model, optimizer_state, device):
     names = [n for n, p in model.named_parameters() if p.requires_grad]
-    avg = torch.cat([optimizer_state[n]["exp_avg"].view(-1) for n in names])
-    avg_sq = torch.cat([optimizer_state[n]["exp_avg_sq"].view(-1)
-                       for n in names])
+    ids = [i for i, p in enumerate(model.parameters()) if p.requires_grad] # will we need this?
+    avg = torch.cat([optimizer_state[i]["exp_avg"].view(-1) for i in range(len(names))])
+    avg_sq = torch.cat([optimizer_state[i]["exp_avg_sq"].view(-1)
+                       for i in range(len(names))])
     avg = avg.to(device)
     avg_sq = avg_sq.to(device)
     return avg, avg_sq
@@ -198,6 +201,7 @@ def collect_grads(dataloader,
                 f"Saving {outfile}, {projected_grads[dim].shape}", flush=True)
             projected_grads[dim] = []
 
+    model.to('cpu')  # TODO potentially remove
     device = next(model.parameters()).device
     dtype = next(model.parameters()).dtype
 
