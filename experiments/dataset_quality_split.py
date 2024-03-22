@@ -66,6 +66,9 @@ high_quality_dataset_path = f'data/high_quality_{dataset_name}_{args.quality_key
 save_dataset(low_quality_dataset, low_quality_dataset_path)
 save_dataset(high_quality_dataset, high_quality_dataset_path)
 
+# json.dump(high_quality_dataset, open(high_quality_dataset_path, 'w'))
+# json.dump(low_quality_dataset, open(low_quality_dataset_path, 'w'))
+
 # with open(low_quality_dataset_path, 'w') as f:
 #     json.dump(low_quality_dataset, f)
 # with open(high_quality_dataset_path, 'w') as f:

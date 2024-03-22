@@ -10,7 +10,7 @@ import numpy as np
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, LlamaTokenizer
 from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
 
-from quality_metrics.common import get_hf_dataset
+from quality_metrics.common import get_hf_dataset, formatting_prompts_func
 from utils_test import (
     prompt_train,
     Prompt_Intstruction,
@@ -81,24 +81,6 @@ def train(config, run_id):
         config.model_id,
         device_map="auto",
     )
-    
-    def formatting_prompts_func(example):
-        output_texts = []
-        # print(len(example['program_str']))
-        for i in range(len(example['program_str'])):
-
-            puzzle= example['program_str'][i]
-            try:
-                prompt_f=puzzle.split("def g(")[0]
-                prompt_g= "def g(" + puzzle.split("def g(")[1]
-                full_prompt = prompt_train.format(pb=prompt_f, g=prompt_g)
-                output_texts.append(full_prompt)
-            except:
-                print("error in formatting_prompts_func idx",i)
-                print(example['program_str'][i])
-                print("======================")
-                print(puzzle)
-        return output_texts
 
     lr_scheduler_type= "cosine"
 
