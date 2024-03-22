@@ -21,6 +21,8 @@ from utils_test import (
 
 def eval(config, run_id, trainer=None):  # TODO how to get the same run_id than the train if done separately
 
+    print('Evaluating...')
+
     if config.slurm.gpu == "v100":
         type_use = torch.float16
     else:
@@ -79,6 +81,7 @@ def eval(config, run_id, trainer=None):  # TODO how to get the same run_id than 
 
         
     list_testset= [x["program_str"] for x in testset]
+    print(f'Length of test set {len(list_testset)}')
     list_puzzle_correct=[]
 
     with torch.inference_mode():
