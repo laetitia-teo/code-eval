@@ -16,3 +16,4 @@ quality_metrics.egg-info/
 quality_metrics/llm_judge/test.ipynb
 
 quality_metrics/key.py
+wandb
