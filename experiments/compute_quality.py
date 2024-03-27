@@ -10,6 +10,7 @@ from quality_metrics.prediction_progress.pp import (
     NormalizedPredictionProgressCE,
     NormalizedPredictionProgressCEDiff,
 )
+from quality_metrics.influence_fn.less import LESS
 
 
 def compute_quality(metric):
@@ -18,7 +19,8 @@ def compute_quality(metric):
 
 @hydra.main(config_path='conf', config_name='quality_default')
 def main(args):
-    match args.metric.name.split(':')[0]:
+    metric_name = args.metric.name.split(':')[0]
+    match metric_name:
         case 'pp':
             metric = PredictionProgressCE(
                 **args.metric,
@@ -35,6 +37,17 @@ def main(args):
             metric = NormalizedPredictionProgressCEDiff(
                 **args.metric
             )
+        case 'less':
+            metric = LESS(
+                dataset_path=args.dataset.path,
+                model_name_or_id=args.metric.model_id_or_path,
+                archive_path=args.metric.archive_path_or_list,
+                training_args=args.training,
+                model_args=args.model,
+                data_args=args.dataset,
+                grad_args=args.grad,
+                influence_args=args.influence,
+            )
         case _:
             raise NotImplementedError(f'{args.metric.name} metric not implemented')
 
@@ -47,10 +60,10 @@ def main(args):
 
     path_name = pathlib.Path(args.metric.archive_path_or_list).stem
     if len(args.metric.name.split(':')) == 1:
-        suffix = f'_quality_{path_name}.json'
+        suffix = f'_quality_{metric_name}_{path_name}.json'
     else:
         # adds the model name to the dataset path
-        suffix = f'_quality_{path_name}_{args.metric.name.split(":")[-1]}.json'
+        suffix = f'_quality_{metric_name}_{path_name}_{args.metric.name.split(":")[-1]}.json'
     save_path = args.dataset.path.replace(
         '.json',
         suffix

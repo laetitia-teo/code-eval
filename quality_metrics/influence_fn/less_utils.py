@@ -30,7 +30,6 @@ from datasets import Dataset
 
 def prepare_batch(batch, device=torch.device("cuda:0")):
     """ Move the batch to the device. """
-    device = torch.device('cpu')
     for key in batch:
         batch[key] = batch[key].to(device)
 
@@ -183,6 +182,7 @@ def collect_grads(dataloader,
 
     def _project(current_full_grads, projected_grads):
         current_full_grads = torch.stack(current_full_grads).to(torch.float16)
+        print('Projecting {}')
         for i, projector in enumerate(projectors):
             current_projected_grads = projector.project(
                 current_full_grads, model_id=model_id)
@@ -201,7 +201,6 @@ def collect_grads(dataloader,
                 f"Saving {outfile}, {projected_grads[dim].shape}", flush=True)
             projected_grads[dim] = []
 
-    model.to('cpu')  # TODO potentially remove
     device = next(model.parameters()).device
     dtype = next(model.parameters()).dtype
 
@@ -461,9 +460,4 @@ def get_data_statistics(lm_datasets):
             f"[{key} set] examples: {data_size}; # avg tokens: {length}")
         print(
             f"[{key} set] examples: {data_size}; # avg completion tokens: {c_length}")
-
-def add_padding_to_tokenizer(tokenizer):
-    """ add the padding tokens in the tokenizer """
-    if tokenizer.pad_token is None:
-        tokenizer.add_special_tokens({"pad_token": "<pad>"})
 

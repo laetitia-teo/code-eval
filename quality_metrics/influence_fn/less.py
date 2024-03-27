@@ -1,6 +1,7 @@
 # Using the LESS influence function described in: https://arxiv.org/abs/2402.04333 
 import sys
 import os
+import re
 import json
 import logging
 
@@ -23,18 +24,15 @@ import less
 from quality_metrics.common import (
     QualityMetric,
     Problem,
-    create_model_and_tokenizer,
     dataset_from_p3,
-    load_dataset,
-    get_hf_dataset,
+    dict_from_dataset,
     set_seed,
-    get_tokenized_hf_dataset
+    get_tokenized_hf_dataset,
+    add_padding_to_tokenizer
 )
 
-from less_utils import (collect_grads, collect_reps, get_loss)
-from less_utils import get_dataloader
-from less_utils import get_data_statistics
-from less_utils import add_padding_to_tokenizer
+from quality_metrics.influence_fn.less_utils import (collect_grads, collect_reps, get_loss)
+from quality_metrics.influence_fn.less_utils import get_dataloader
 
 
 logger = logging.getLogger(__name__)
@@ -102,6 +100,9 @@ class LESS(QualityMetric):
     """
     def __init__(
             self,
+            dataset_path: str,
+            model_name_or_id: str,
+            archive_path: str,
             training_args: OmegaConf,
             model_args: OmegaConf,
             data_args: OmegaConf,
@@ -109,8 +110,9 @@ class LESS(QualityMetric):
             influence_args: OmegaConf,
             **kwargs,
         ):
-
-        self.lora_target_modules = ['q_proj', 'k_proj', 'v_proj', 'o_proj']
+        self.dataset_path = dataset_path
+        self.model_name_or_id = model_name_or_id
+        self.archive_path = archive_path
         self.training_args = training_args
         self.model_args = model_args
         self.data_args = data_args
@@ -119,34 +121,17 @@ class LESS(QualityMetric):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # if not os.path.exists(self.save_path):
-        #     os.makedirs(self.save_path)
-
         self.influences = {}
     
-        self.dtype = torch.float16 if self.grad_args.torch_dtype == "float16" else torch.bfloat16
+        self.dtype = torch.float16 if self.model_args.torch_dtype == "float16" else torch.bfloat16
 
-        # self._load_data(archive_path_or_list, dataset_path)
         self._warmup()
         self._compute_train_grads()
         self._compute_archive_grads()
         self._get_influence()
-
-    def _load_data(self, archive_path_or_list, dataset_path):
-        # load archive
-        if isinstance(archive_path_or_list, str):
-            dataset = json.load(open(archive_path_or_list, 'r'))
-            self.problem_archive = dataset_from_p3(dataset)
-        else:
-            self.problem_archive = archive_path_or_list
-
-        # load dataset
-        # TODO apply chat template, and use transformer Datasets?
-        dataset = json.load(open(dataset_path, 'r'))
-        self.dataset = dataset_from_p3(dataset)  # some work needed to plug this guy in the dataloader for less
+        print('Initilization complete')
 
     def _warmup(self):
-        # TODO add option for loading model and optim state at init
         logging.basicConfig(
             format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
             datefmt="%m/%d/%Y %H:%M:%S",
@@ -170,17 +155,22 @@ class LESS(QualityMetric):
         logger.info(f"Dataset parameters {self.data_args}")
 
         # Set seed before initializing model.
-        set_seed(self.training_args.seed)  # TODO do this with our own fns
+        set_seed(self.training_args.seed)
 
-        tokenizer = AutoTokenizer.from_pretrained(self.model_args.model_name_or_path)
+        tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_id)
         # Load training dataset
-        train_dataset = json.load(open(self.data_args.train_files[0], encoding="utf-8"))
+        train_dataset = json.load(open(self.dataset_path, encoding="utf-8"))
+        train_dataset = dict_from_dataset(dataset_from_p3(train_dataset))
         if self.training_args.dev:
             train_dataset = train_dataset[:20]
 
+        if self.data_args.percentage != 1.:
+            samples_to_keep = int(self.data_args.percentage * len(train_dataset))
+            train_dataset = np.random.choice(train_dataset, samples_to_keep, replace=False).tolist()
+
         model = AutoModelForCausalLM.from_pretrained(
-            self.model_args.model_name_or_path, torch_dtype=self.dtype)
-        add_padding_to_tokenizer(tokenizer)  # TODO do this with our own fns
+            self.model_name_or_id, torch_dtype=self.dtype)
+        add_padding_to_tokenizer(tokenizer)
 
         # resize embeddings if needed (e.g. for LlamaTokenizer)
         embedding_size = model.get_input_embeddings().weight.shape[0]
@@ -215,7 +205,9 @@ class LESS(QualityMetric):
                     output.requires_grad_(True)
                 model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
-        train_dataset = get_tokenized_hf_dataset(train_dataset, tokenizer)
+        train_dataset = get_tokenized_hf_dataset(train_dataset, tokenizer,
+                                                 max_legth=self.data_args.max_seq_length,
+                                                 use_chat_format=self.data_args.use_chat_format)
         
         for index in np.random.randint(0, len(train_dataset), 2):
             logger.info(
@@ -225,28 +217,17 @@ class LESS(QualityMetric):
                         for p in model.parameters() if p.requires_grad)
         logger.info(f"trainable model_params: {model_params}")
 
-        analysis_dataset = None
-        # if self.training_args.analysis_mode:
-        #     from less.data_selection.get_validation_dataset import get_dataset
-        #     analysis_dataset = get_dataset(self.training_args.analysis_dataset,
-        #                                 data_dir=self.data_args.data_dir,
-        #                                 tokenizer=tokenizer,
-        #                                 max_length=self.data_args.max_seq_length)
-
         if dist.is_initialized() and dist.get_rank() == 0:
             print(model)
         elif not dist.is_initialized():
             print(model)
 
         training_args = deepcopy(OmegaConf.to_container(self.training_args))
-        del training_args['train_dataset_names']
         del training_args['log_level']
-        del training_args['local_rank']
-        del training_args['device']
-        del training_args['n_gpu']
+        del training_args['local_rank']  # not used for now
+        del training_args['device']  # not used for now
+        del training_args['n_gpu']  # not used for now
         del training_args['dev']
-        # training_arguments['output_dir']
-        # del training_args['n_gpus']
 
         training_arguments = TrainingArguments(
             **training_args
@@ -255,16 +236,12 @@ class LESS(QualityMetric):
         # train model
         trainer = Trainer(
             model=model,
-            # output_dir=,
             args=training_arguments,
             train_dataset=train_dataset,
-            # eval_dataset=analysis_dataset,
             tokenizer=tokenizer,
             data_collator=DataCollatorForLanguageModeling(
                 tokenizer=tokenizer, mlm=False,
             )
-            # data_collator=DataCollatorForSeq2Seq(  # TODO check this works
-            #     tokenizer=tokenizer, model=model, padding="longest")
         )
 
         # Training
@@ -287,13 +264,12 @@ class LESS(QualityMetric):
             os.remove(pytorch_model_path) if os.path.exists(
                 pytorch_model_path) else None
         
-    def _compute_grads(self, dataset, optimizer='adam'):  # TODO simplify
+    def _compute_grads(self, dataset, model_path, output_path, optimizer='adam', suffix='train'):
         tokenizer = AutoTokenizer.from_pretrained(self.grad_args.model_path)
         dataset = get_tokenized_hf_dataset(dataset, tokenizer)
         dataset = dataset.remove_columns('text')
         dataset = dataset.add_column('labels', dataset['input_ids'])
-        model = load_model(self.grad_args.model_path, self.dtype)
-        # model = self.model  # TODO beware of stateful modifs
+        model = load_model(model_path, self.dtype)
 
         # pad token is not added by default for pretrained models
         if tokenizer.pad_token is None:
@@ -325,34 +301,16 @@ class LESS(QualityMetric):
             adam_optimizer_state = torch.load(
                 optimizer_path, map_location="cpu")["state"]
 
-        # if self.grad_args.task is not None:  # modification here
-        #     dataset = get_dataset(self.grad_args.task,
-        #                         data_dir=self.grad_args.data_dir,
-        #                         tokenizer=tokenizer,
-        #                         chat_format=self.grad_args.chat_format,
-        #                         use_chat_format=self.grad_args.use_chat_format,
-        #                         max_length=self.grad_args.max_length,
-        #                         zh=self.grad_args.zh)
-        #     dataloader = get_dataloader(dataset, tokenizer=tokenizer)
-        # else:
-        #     assert self.grad_args.train_file is not None
-        #     dataset = get_training_dataset(
-        #         self.grad_args.train_file, tokenizer, self.grad_args.max_length, sample_percentage=1.0)
-        #     columns = deepcopy(dataset.column_names)
-        #     columns.remove("input_ids")
-        #     columns.remove("labels")
-        #     columns.remove("attention_mask")
-        #     dataset = dataset.remove_columns(columns)
         dataloader = get_dataloader(dataset, tokenizer=tokenizer)
 
-        # this saves the grads to disk
+        # computes grads and saves to disk
         if self.grad_args.info_type == "reps":
             collect_reps(dataloader, model, self.grad_args.output_path,
                         max_samples=self.grad_args.max_samples)
         elif self.grad_args.info_type == "grads":
             collect_grads(dataloader,
                           model,
-                          self.grad_args.output_path,
+                          output_path,
                           proj_dim=self.grad_args.gradient_projection_dimension,
                           gradient_type=optimizer,
                           adam_optimizer_state=adam_optimizer_state,
@@ -360,70 +318,79 @@ class LESS(QualityMetric):
         elif self.grad_args.info_type == "loss":
             get_loss(dataloader, model, self.grad_args.output_path)
 
+    def _get_checkpoints(self):
+        checkpoint_pattern = 'checkpoint\-([0-9]+)'
+        files = os.listdir(self.training_args.output_dir)
+        checkpoint_files = [re.match(checkpoint_pattern, f)[0] for f in files if re.match(checkpoint_pattern, f)]
+        checkpoints = [int(re.match(checkpoint_pattern, f)[1]) for f in files if re.match(checkpoint_pattern, f)]
+        return checkpoints, checkpoint_files
 
     def _compute_archive_grads(self):
-        dataset = json.load(open(self.data_args.train_files[0], encoding="utf-8"))
+        dataset = json.load(open(self.archive_path, encoding="utf-8"))
+        dataset = dict_from_dataset(dataset_from_p3(dataset))
+        # TODO: remove
         if self.training_args.dev:
-            dataset = dataset[5:10]
-        self._compute_grads(dataset, optimizer='sgd')
+            dataset = dataset[6:10]
+        checkpoints, checkpoint_files = self._get_checkpoints()
+        for checkpoint, checkpoint_f in zip(checkpoints, checkpoint_files):
+            print(f'(archive) Computing gradients for {checkpoint_f}')
+            model_path = os.path.join(self.training_args.output_dir, checkpoint_f)
+            output_path = os.path.join(self.training_args.output_dir, 'grads_archive', checkpoint_f)
+            self._compute_grads(dataset, model_path, output_path, optimizer='sgd', suffix='archive')
     
     def _compute_train_grads(self):
-        dataset = json.load(open(self.data_args.train_files[0], encoding="utf-8"))
+        dataset = json.load(open(self.dataset_path, encoding="utf-8"))
+        dataset = dict_from_dataset(dataset_from_p3(dataset))
+        self.train_problem_idx = [p['idx'] for p in dataset]
+        # TODO: remove
         if self.training_args.dev:
-            dataset = dataset[:5]
-        self._compute_grads(dataset, optimizer='adam')
+            dataset = dataset[:6]
+        checkpoints, checkpoint_files = self._get_checkpoints()
+        for checkpoint, checkpoint_f in zip(checkpoints, checkpoint_files):
+            print(f'(train) Computing gradients for {checkpoint_f}')
+            model_path = os.path.join(self.training_args.output_dir, checkpoint_f)
+            output_path = os.path.join(self.training_args.output_dir, 'grads_train', checkpoint_f)
+            self._compute_grads(dataset, model_path, output_path, optimizer='adam', suffix='train')
     
     def _get_influence(self):
-        # if sum(self.influence_args.checkpoint_weights) != 1:
-        #     s = sum(self.influence_args.checkpoint_weights)
-        #     self.influence_args.checkpoint_weights = [i/s for i in 
-        #         self.influence_args.checkpoint_weights]
-        pass
+        # TODO add checkpoint weights: average lr of the epoch/steps between saves
+        # for target_task_name in self.influence_args.target_task_names:  # single task
+        checkpoints, checkpoint_files = self._get_checkpoints()
 
-        for target_task_name in self.influence_args.target_task_names:
-            for train_file_name in self.influence_args.train_file_names:
-                influence_score = 0
-                for i, ckpt in enumerate(self.influence_args.ckpts):
-                    # validation_path = self.influence_args.validation_gradient_path.format(
-                    # target_task_name, ckpt)
-                    validation_path = self.influence_args.validation_gradient_path.format(
-                        ckpt, target_task_name)
-                    validation_info = torch.load(validation_path)
+        influence_score = 0
+        for i, checkpoint in enumerate(checkpoints):
+            output_path = os.path.join(self.training_args.output_dir, 'grads_archive', f'checkpoint-{checkpoint}')
+            validation_path = output_path + '/dim8192/all_orig.pt'
+            validation_info = torch.load(validation_path)
 
-                    if not torch.is_tensor(validation_info):
-                        validation_info = torch.tensor(validation_info)
-                    validation_info = validation_info.to(self.device).float()
-                    # gradient_path = self.influence_args.gradient_path.format(train_file_name, ckpt)
-                    gradient_path = self.influence_args.gradient_path.format(ckpt, train_file_name)
-                    training_info = torch.load(gradient_path)
+            if not torch.is_tensor(validation_info):
+                validation_info = torch.tensor(validation_info)
+            validation_info = validation_info.to(self.device).float()
+            output_path = os.path.join(self.training_args.output_dir, 'grads_train', f'checkpoint-{checkpoint}')
+            training_path = output_path + '/dim8192/all_orig.pt'
+            training_info = torch.load(training_path)
 
-                    if not torch.is_tensor(training_info):
-                        training_info = torch.tensor(training_info)
-                    training_info = training_info.to(self.device).float()
+            if not torch.is_tensor(training_info):
+                training_info = torch.tensor(training_info)
+            training_info = training_info.to(self.device).float()
 
-                    influence_score += 1 * \
-                        calculate_influence_score(
-                            training_info=training_info, validation_info=validation_info)
-                influence_score = influence_score.mean(-1)[0]
-                output_dir = os.path.join(self.influence_args.output_path, target_task_name)
-                if not os.path.exists(output_dir):
-                    os.makedirs(output_dir)
-                output_file = os.path.join(
-                    self.influence_args.output_path, target_task_name, f"{train_file_name}_influence_score.pt")
-                torch.save(influence_score, output_file)
-                print("Saved influence score to {}".format(output_file))
+            influence_score += 1 * \
+                calculate_influence_score(
+                    training_info=training_info, validation_info=validation_info)
+        
+        self.influences = {k: v for k, v in zip(self.train_problem_idx, influence_score.cpu().tolist())}
+        influence_score = influence_score.mean(-1)
+        output_dir = os.path.join(self.training_args.output_dir, 'influence')
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        output_file = os.path.join(
+            output_dir, f"{self.dataset_path.split('/')[-1]}_influence_score.pt")
+        torch.save(influence_score, output_file)
+        print("Saved influence score to {}".format(output_file))
 
-    
-    def __call__(self, p: Problem):
+    def __call__(self, p: Problem, return_list=True):
+        # TODO refactoring: actually compute influence scores for all our checkpoints
         return self.influences[p.idx]
-
-
-class InstantLESS(QualityMetric):  # Would be interesting to cosine sim these one with the previous ones
-    """
-    Attempt at a one-step version of LESS (only compute the cosine sim for data and val gradients).
-    We keep the warmup period for now.
-    """
-    pass
 
 
 @hydra.main(config_path='../../conf', config_name='less_dev', version_base='1.2')

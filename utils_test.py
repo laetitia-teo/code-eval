@@ -214,6 +214,8 @@ You are a sentient, superintelligent artificial general intelligence, here to te
         prompt = "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{instruction}\n\n### Response:"
     if model_id == "open_llama_3b_v2":
         prompt = "Q: {instruction}\nA:"
+    if 'Qwen' in model_id:
+        prompt = "<|im_start|>user\n{instruction}<|im_end|>\n<|im_start|>assistant\n"
     return prompt
 
 Prompt_Intstruction ='''You will be given a function and its docstring. Respond only in code with a correct, efficient implementation of the function.
@@ -244,11 +246,12 @@ assert f(g()) == True
 ```
 {pb}
 ```'''
-def return_full_prompt(model_id,pb):
+
+
+def return_full_prompt(model_id, pb):
     """return the full prompt for a given model_id and a given problem""" 
     instruction=Prompt_Intstruction.format(pb=pb)
     return return_prompt_format(model_id).format(instruction=instruction)
-
 
 
 def pass_at_k(n, c, k):
@@ -265,8 +268,6 @@ def pass_at_k(n, c, k):
     return 1.0 - np.prod(1.0 - k / np.arange(n - c + 1, n + 1))
 
 
-
-
 def return_f(puzzle_json):
     puzzle_json = copy.deepcopy(puzzle_json)
     f = puzzle_json["sat"]
@@ -277,6 +278,7 @@ def return_f(puzzle_json):
     if type(puzzle_json["sol_docstring"]) == str:
         f=f[:idx_add_problem_description+1]+ puzzle_json["sol_docstring"]+"\n"+f[idx_add_problem_description+1:]
     return f
+
 
 def extract_args_f(f):
     """
@@ -295,6 +297,7 @@ def extract_args_f(f):
         if i < len(name_args)-1:
             str_arg+=", "
     return str_arg
+
 
 def add_return_bool_2_f(f):
     tree = ast.parse(f)
@@ -326,8 +329,7 @@ def merge_Q_and_A(liste_fg):
 
 
 
-
-def exctract_docstring(source_code: str, remove_docstring : bool = True) -> str:
+def extract_docstring(source_code: str, remove_docstring : bool = True) -> str:
     """ 
     remove docstring of function f in source_code
     if remove_docstring == False, just copy docstring and return the unmodified source_code 
@@ -390,6 +392,7 @@ def just_remove_example_in_docstring(source_code: str) -> str:
 
     return puzzle_formated
 
+
 def remove_example_line(code: str) -> str:
     pattern = r'(""".*?)(Example:.*?\n)(.*?""")'
     replacement = r'\1"""\n'
@@ -398,6 +401,7 @@ def remove_example_line(code: str) -> str:
     modified_code = re.sub(pattern, replacement, code, flags=re.DOTALL)
 
     return modified_code
+
 
 def preprocessing_P3_no_test(split: str = "train", n_token_max: int =512, path=None,tokenizer=None) -> List[dict]:
     """

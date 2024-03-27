@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 from datasets import Dataset
 
-from utils_test import prompt_train  # TODO move these someplace else?
+from utils_test import prompt_train, return_prompt_format  # TODO move these someplace else?
 from quality_metrics.utils.p3 import get_puzzle_sol
 
 
@@ -106,7 +106,7 @@ def dataset_from_p3(dataset: List) -> List[Problem]:
     return problem_dataset
 
 
-def save_dataset(dataset: List[Problem], path: str):
+def dict_from_dataset(dataset: List[Problem]) -> List[Dict]:
     json_dataset = []
     for p in dataset:
         el = {}
@@ -118,6 +118,12 @@ def save_dataset(dataset: List[Problem], path: str):
         el['description'] = p.description
         el['origin'] = p.origin
         json_dataset.append(el)
+    
+    return json_dataset
+
+
+def save_dataset(dataset: List[Problem], path: str):
+    json_dataset = dict_from_dataset(dataset)
 
     if not os.path.exists(str(pathlib.Path(path).parent)):
         os.makedirs(str(pathlib.Path(path).parent))
@@ -157,7 +163,7 @@ def formatting_prompts_func(example):
     # print(len(example['program_str']))
     for i in range(len(example['program_str'])):
 
-        puzzle= example['program_str'][i]
+        puzzle = example['program_str'][i]
         try:
             prompt_f=puzzle.split("def g(")[0]
             prompt_g= "def g(" + puzzle.split("def g(")[1]
@@ -206,18 +212,25 @@ def get_hf_dataset(dataset, quality_key=None, seed=0, use_description=True):
     return dataset
 
 
-def get_tokenized_hf_dataset(dataset, tokenizer, use_description=True, max_size=2048, labels=False):
+def get_tokenized_hf_dataset(dataset, tokenizer, use_description=True, max_legth=2048, labels=False,
+                             use_chat_format=True):
+    if use_chat_format:
+        dummy_chat = [{'role': 'user', 'content': '{instruction}'}]
+        complete_prompt = tokenizer.apply_chat_template(dummy_chat, tokenize=False, add_generation_prompt=True)
+    else:
+        complete_prompt = '{instruction}'
+
     def process_fn(el):
         instruction = p3_insert_description(process_description(el['description']), el['instruction'])
         puzzle = instruction + "\n\n" + el['completion'] + "\n\nassert f(g()) is True"
         prompt_f = puzzle.split("def g(")[0]
-        prompt_g= "def g(" + puzzle.split("def g(")[1]
-        return prompt_train.format(pb=prompt_f, g=prompt_g)
+        prompt_g = "def g(" + puzzle.split("def g(")[1]
+        instruction = prompt_train.format(pb=prompt_f, g=prompt_g)
+        return complete_prompt.format(instruction=instruction)
 
     texts = [process_fn(el) for el in dataset]
-    tokenizer_outs = tokenizer(texts)
-    dataset = [{'input_ids': tokenizer_outs.input_ids[i], 'text': texts[i]} for i in range(len(texts)) 
-               if len(tokenizer_outs.input_ids[i]) < max_size]
+    tokenizer_outs = tokenizer(texts, max_length=max_legth)
+    dataset = [{'input_ids': tokenizer_outs.input_ids[i], 'text': texts[i]} for i in range(len(texts))]
     if labels:
         for el in dataset:
             el['label'] = el['input_ids']
@@ -235,7 +248,7 @@ def set_seed(seed):
 
 class QualityMetric(ABC):
     @abstractmethod
-    def __call__(self, problem: Problem):
+    def __call__(self, problem: Problem, return_list=True):
         raise NotImplementedError
 
 
@@ -361,3 +374,10 @@ if __name__ == '__main__':
     pb_ds = dataset_from_p3(ds)
     save_dataset(pb_ds, 'data/saved.json')
     print('done')
+
+
+def add_padding_to_tokenizer(tokenizer):
+    """ add the padding tokens in the tokenizer """
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    
