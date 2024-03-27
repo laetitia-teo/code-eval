@@ -1,5 +1,11 @@
 # Evaluation scripts for code models 
 
+### Compute quality
+
+```bash
+python experiments/compute_quality --config-name {conf}
+```
+
 ### Create random splits and finetune models on them
 
 ```bash
