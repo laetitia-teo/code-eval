@@ -112,7 +112,6 @@ class PredictionProgressCE(QualityMetric):
         # apply chat template to all the prompts
         prompts = []
         for user_prompt, assistant_prompt in zip(completed_user_prompts, completed_assistant_prompts):
-            # TODO wrong use of the chat template, fix this
             messages = self.messages + [
                 {'role': 'user', 'content': user_prompt},
                 {'role': 'assistant', 'content': assistant_prompt}
