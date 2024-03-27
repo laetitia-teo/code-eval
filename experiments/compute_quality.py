@@ -17,7 +17,7 @@ def compute_quality(metric):
     pass
 
 
-@hydra.main(config_path='conf', config_name='quality_default')
+@hydra.main(config_path='conf', config_name='quality_default', version_base='1.2')
 def main(args):
     metric_name = args.metric.name.split(':')[0]
     match metric_name:
