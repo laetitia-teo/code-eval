@@ -2,7 +2,7 @@ metric:
   name: less
   model_id_or_path: 'Qwen/Qwen1.5-0.5B'
   # model_id_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
-  archive_path_or_list: /projets/flowers2/laetitia/code-eval/data/puzzles_train_1_dev.json
+  archive_path_or_list: /projets/flowers2/laetitia/code-eval/data/puzzles_train_1.json
   solution_mask: true
   batch_size: 2
   max_len: 1024
@@ -69,7 +69,7 @@ influence:
 
 dataset:
   name: p3
-  path: /projets/flowers2/laetitia/code-eval/data/dataset_dev.json
+  path: /projets/flowers2/laetitia/code-eval/data/dataset.json
   overwrite_cache: false
   preprocessing_num_workers: null
   max_seq_length: 2048
