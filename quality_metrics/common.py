@@ -212,7 +212,7 @@ def get_hf_dataset(dataset, quality_key=None, seed=0, use_description=True):
     return dataset
 
 
-def get_tokenized_hf_dataset(dataset, tokenizer, use_description=True, max_legth=2048, labels=False,
+def get_tokenized_hf_dataset(dataset, tokenizer, use_description=True, max_length=2048, labels=False,
                              use_chat_format=True):
     if use_chat_format:
         dummy_chat = [{'role': 'user', 'content': '{instruction}'}]
@@ -229,7 +229,7 @@ def get_tokenized_hf_dataset(dataset, tokenizer, use_description=True, max_legth
         return complete_prompt.format(instruction=instruction)
 
     texts = [process_fn(el) for el in dataset]
-    tokenizer_outs = tokenizer(texts, max_length=max_legth)
+    tokenizer_outs = tokenizer(texts, max_length=max_length, truncation=True)
     dataset = [{'input_ids': tokenizer_outs.input_ids[i], 'text': texts[i]} for i in range(len(texts))]
     if labels:
         for el in dataset:
