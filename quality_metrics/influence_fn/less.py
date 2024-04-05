@@ -232,6 +232,10 @@ class LESS(QualityMetric):
             **training_args
         )
 
+        # print train batch sizes to debug
+        for i, ii in enumerate(train_dataset['input_ids']):
+            print(f'Index {i}, len {len(ii)}')
+
         # train model
         trainer = Trainer(
             model=model,
