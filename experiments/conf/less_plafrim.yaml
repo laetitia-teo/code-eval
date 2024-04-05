@@ -72,7 +72,7 @@ dataset:
   path: /projets/flowers2/laetitia/code-eval/data/dataset.json
   overwrite_cache: false
   preprocessing_num_workers: null
-  max_seq_length: 2048
+  max_seq_length: 1024
   percentage: 1.0
   use_chat_format: yes
 
