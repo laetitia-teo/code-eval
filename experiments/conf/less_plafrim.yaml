@@ -13,8 +13,8 @@ training:
   local_rank: -1  # not used
   device: cuda  # not used
   n_gpu: 1  # not used
-  per_device_train_batch_size: 8
-  gradient_accumulation_steps: 1
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 2
   run_name: less_dev_warmup
   save_strategy: 'steps'
   save_steps: 225
