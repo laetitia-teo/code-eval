@@ -205,7 +205,7 @@ class LESS(QualityMetric):
                 model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
 
         train_dataset = get_tokenized_hf_dataset(train_dataset, tokenizer,
-                                                 max_legth=self.data_args.max_seq_length,
+                                                 max_length=self.data_args.max_seq_length,
                                                  use_chat_format=self.data_args.use_chat_format)
         
         for index in np.random.randint(0, len(train_dataset), 2):
