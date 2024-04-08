@@ -101,28 +101,28 @@ def get_number_of_params(model):
     return num_params
 
 
-def obtain_gradients(model, batch):
+def obtain_gradients(model, batch, device):
     """ obtain gradients. """
     loss = model(**batch).loss
     loss.backward()
     vectorized_grads = torch.cat(
-        [p.grad.view(-1) for p in model.parameters() if p.grad is not None])
+        [p.grad.to(device).view(-1) for p in model.parameters() if p.grad is not None])
     return vectorized_grads
 
 
-def obtain_sign_gradients(model, batch):
+def obtain_sign_gradients(model, batch, device):
     """ obtain gradients with sign. """
     loss = model(**batch).loss
     loss.backward()
 
     # Instead of concatenating the gradients, concatenate their signs
     vectorized_grad_signs = torch.cat(
-        [torch.sign(p.grad).view(-1) for p in model.parameters() if p.grad is not None])
+        [torch.sign(p.grad).to(device).view(-1) for p in model.parameters() if p.grad is not None])
 
     return vectorized_grad_signs
 
 
-def obtain_gradients_with_adam(model, batch, avg, avg_sq):
+def obtain_gradients_with_adam(model, batch, avg, avg_sq, device=torch.device('cuda:0')):
     """ obtain gradients with adam optimizer states. """
     beta1 = 0.9
     beta2 = 0.999
@@ -132,7 +132,7 @@ def obtain_gradients_with_adam(model, batch, avg, avg_sq):
     loss.backward()
 
     vectorized_grads = torch.cat(
-        [p.grad.view(-1) for n, p in model.named_parameters() if p.grad is not None])
+        [p.grad.view(-1).to(device) for n, p in model.named_parameters() if p.grad is not None])
 
     updated_avg = beta1 * avg + (1 - beta1) * vectorized_grads
     updated_avg_sq = beta2 * avg_sq + (1 - beta2) * vectorized_grads ** 2
@@ -258,15 +258,15 @@ def collect_grads(dataloader,
         if gradient_type == "adam":
             if count == 1:
                 print("Using Adam gradients")
-            vectorized_grads = obtain_gradients_with_adam(model, batch, m, v)
+            vectorized_grads = obtain_gradients_with_adam(model, batch, m, v, device)
         elif gradient_type == "sign":
             if count == 1:
                 print("Using Sign gradients")
-            vectorized_grads = obtain_sign_gradients(model, batch)
+            vectorized_grads = obtain_sign_gradients(model, batch, device)
         else:
             if count == 1:
                 print("Using SGD gradients")
-            vectorized_grads = obtain_gradients(model, batch)
+            vectorized_grads = obtain_gradients(model, batch, device)
 
         # add the gradients to the full_grads
         full_grads.append(vectorized_grads)
