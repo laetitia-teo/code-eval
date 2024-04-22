@@ -1,3 +1,12 @@
+metric:
+  name: less
+  model_id_or_path: 'Qwen/Qwen1.5-0.5B'
+  # model_id_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
+  archive_path_or_list: /home/laetitia/work/code-eval/data/puzzles_train_1.json
+  solution_mask: true
+  batch_size: 2
+  max_len: 1024
+
 training:
   seed: 42
   log_level: INFO
@@ -17,10 +26,10 @@ training:
   fp16: false
   gradient_checkpointing: false
   logging_steps: 1
-  output_dir: outputs/less_dev
+  output_dir: outputs/less_dev_1
   optim: adamw_torch
   max_grad_norm: 0.3
-  dev: false
+  dev: true
 
 model:
   # model_name_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
@@ -37,14 +46,6 @@ model:
   lora_alpha: 512
   lora_dropout: 0.1
   lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj"]
-
-data:
-  train_files: [data/p3_pb_dataset.json]
-  overwrite_cache: false
-  preprocessing_num_workers: null
-  max_seq_length: 2048
-  percentage: 0.05
-  use_chat_format: yes
 
 grad:
   info_type: grads
@@ -65,3 +66,14 @@ grad:
 influence:
   train_file_names: ['data/p3_pb_dataset.json']
   checkpoint_weights: null  # detect automatically
+
+dataset:
+  name: p3
+  path: /home/laetitia/work/code-eval/data/dataset.json
+  overwrite_cache: false
+  preprocessing_num_workers: null
+  max_seq_length: 1024
+  percentage: 1.0
+  use_chat_format: yes
+
+save_every: 50

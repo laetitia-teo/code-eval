@@ -326,6 +326,8 @@ class LESS(QualityMetric):
         files = os.listdir(self.training_args.output_dir)
         checkpoint_files = [re.match(checkpoint_pattern, f)[0] for f in files if re.match(checkpoint_pattern, f)]
         checkpoints = [int(re.match(checkpoint_pattern, f)[1]) for f in files if re.match(checkpoint_pattern, f)]
+        # sort
+        checkpoints, checkpoint_files = zip(*sorted(zip(checkpoints, checkpoint_files), key=lambda x: x[0]))
         return checkpoints, checkpoint_files
 
     def _compute_archive_grads(self):
@@ -355,10 +357,26 @@ class LESS(QualityMetric):
             output_path = os.path.join(self.training_args.output_dir, 'grads_train', checkpoint_f)
             self._compute_grads(dataset, model_path, output_path, optimizer='adam', suffix='train')
     
+    def _get_checkpoint_weight(self, checkpoint):
+        # load the saved average learning rate
+        trainer_state_path = os.path.join(self.training_args.output_dir, 
+                                  f'checkpoint-{checkpoint}', 'trainer_state.json')
+        trainer_state = json.load(open(trainer_state_path, 'r'))['log_history']
+        # trainer state keeps all learning rates
+        lrs = [el['learning_rate'] for el in trainer_state][-self.training_args.save_steps:]
+        return sum(lrs) / len(lrs)
+
     def _get_influence(self):
         # TODO add checkpoint weights: average lr of the epoch/steps between saves
         # for target_task_name in self.influence_args.target_task_names:  # single task
         checkpoints, checkpoint_files = self._get_checkpoints()
+
+        checkpoint_weights = [self._get_checkpoint_weight(checkpoint) for checkpoint in checkpoints]
+        if sum(checkpoint_weights) != 1:
+            s = sum(checkpoint_weights)
+            checkpoint_weights = [i/s for i in checkpoint_weights]
+
+        print(f'Checkpoint weights {checkpoint_weights}')
 
         influence_score = 0
         for i, checkpoint in enumerate(checkpoints):
@@ -377,7 +395,7 @@ class LESS(QualityMetric):
                 training_info = torch.tensor(training_info)
             training_info = training_info.to(self.device).float()
 
-            influence_score += 1 * \
+            influence_score += checkpoint_weights[i] * \
                 calculate_influence_score(
                     training_info=training_info, validation_info=validation_info)
         
@@ -398,12 +416,19 @@ class LESS(QualityMetric):
 
 @hydra.main(config_path='../../conf', config_name='less_dev', version_base='1.2')
 def main(args):
-    less_metric = LESS(
-        args.training, 
-        args.model,
-        args.data,
-        args.grad,
-        args.influence,
+    dataset_path = args.dataset.path
+    model_name_or_id = args.metric.model_id_or_path
+    archive_path = args.metric.archive_path_or_list
+
+    metric = LESS(
+        dataset_path=args.dataset.path,
+        model_name_or_id=args.metric.model_id_or_path,
+        archive_path=args.metric.archive_path_or_list,
+        training_args=args.training,
+        model_args=args.model,
+        data_args=args.dataset,
+        grad_args=args.grad,
+        influence_args=args.influence,
     )
     print('Done!')
 

@@ -17,7 +17,7 @@ training:
   gradient_accumulation_steps: 1
   run_name: less_dev_warmup
   save_strategy: 'steps'
-  save_steps: 5
+  save_steps: 100
   # warmup_ratio: 0.1
   lr_scheduler_type: 'cosine'
   num_train_epochs: 2
