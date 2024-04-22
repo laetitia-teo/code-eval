@@ -1,7 +1,7 @@
 metric:
   name: less
-  # model_id_or_path: 'Qwen/Qwen1.5-0.5B'
-  model_id_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
+  model_id_or_path: 'Qwen/Qwen1.5-0.5B'
+  # model_id_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
   archive_path_or_list: /projets/flowers2/laetitia/code-eval/data/puzzles_train_1.json
   solution_mask: true
   batch_size: 2
@@ -32,8 +32,8 @@ training:
   dev: false
 
 model:
-  model_name_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
-  # model_name_or_path: 'Qwen/Qwen1.5-0.5B'
+  # model_name_or_path: 'deepseek-ai/deepseek-coder-1.3b-instruct'
+  model_name_or_path: 'Qwen/Qwen1.5-0.5B'
   config_name: null  # not used
   tokenizer_name: null  # not used
   cache_dir: None  # not used
